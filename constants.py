@@ -1,0 +1,2 @@
+DATE_FORMAT = "%Y-%m-%d"
+HOUR_MIN_TIME_FORMAT = '%H%M'

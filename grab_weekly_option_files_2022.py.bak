@@ -1,0 +1,50 @@
+import os
+import re
+import pickle
+
+from util import write_pickle_data
+
+
+def get_all_nifty_weekly_option_files_for_2022(ticker_name):
+    path = "/Users/anoopisaac/projects/backtest-options/2022/"
+    months = ['Options January 2022', 'Options February 2022', 'Options March 2022']
+    year_end_pattern = "\d\d"
+    month_pattern = "([0-9]|O|N|D|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
+    expiry_day_pattern = "\d\d"
+    strike_price_pattern = "\d+"
+    option_type_pattern = "(PE|CE)"
+    only_nifty_match = re.compile(
+        f'{ticker_name}{year_end_pattern}{month_pattern}.*{strike_price_pattern}{option_type_pattern}\.csv$')
+    all_nifty_weekly_option_files = []
+
+    for month in months:
+        full_path = path + month
+        folder_list = os.listdir(full_path)
+        option_folder_data_match = re.compile(f'.*2022$')
+        daily_data_folders = [f for f in folder_list if option_folder_data_match.match(f) is not None]
+        # getting rid of rar files and getting only the folders that contains data.
+        # option_folder_data_match = re.compile(f'.*{year}$')
+        # option_folder_data_match = re.compile(f'Options January 2020$')
+        # monthly_data_folders = [f for f in file_list if option_folder_data_match.match(f)!=None]
+        # searching through monthly option folders and getting only the nifty data
+        print(month)
+        for daily_folder in daily_data_folders:
+            option_files = os.listdir(full_path + "/" + daily_folder)
+            # print(option_files)
+            # getting only the weekly files for nifty
+            only_nifty_weekly_files = [{"file": f, "filePath": f'{full_path + "/" + daily_folder}/{f}'} for f in
+                                       option_files if only_nifty_match.match(f) is not None]
+            # print(only_nifty_weekly_files)
+            all_nifty_weekly_option_files.extend(only_nifty_weekly_files)
+    return all_nifty_weekly_option_files
+
+
+def write_option_files(nifty_type):
+    filename = f'{nifty_type}_weekly_option_data_files_2022'
+    outfile = open(filename, 'wb')
+    option_data_files = get_all_nifty_weekly_option_files_for_2022(nifty_type)
+    pickle.dump(option_data_files, outfile)
+    outfile.close()
+
+
+

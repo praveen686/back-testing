@@ -1,0 +1,335 @@
+getting all the basket info
+fetch("https://kite.zerodha.com/api/baskets", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-csrftoken": "78NRSiCsM1hAiJNPVg2C4m7O6PMYbPqJ",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "exchange=NFO&tradingsymbol=BANKNIFTY2241341700CE&transaction_type=BUY&order_type=MARKET&quantity=25&price=0&product=NRML&validity=DAY&validity_ttl=1&disclosed_quantity=0&trigger_price=0&variety=regular&tag=bsk&tag=bsk%3A9553476&gtt_params=&user_id=NNV006",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "exchange=NFO&tradingsymbol=BANKNIFTY2241341600CE&transaction_type=SELL&order_type=MARKET&quantity=25&price=0&product=NRML&validity=DAY&validity_ttl=1&disclosed_quantity=0&trigger_price=0&variety=regular&tag=bsk&tag=bsk%3A9553476&gtt_params=&user_id=NNV006",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "exchange=NFO&tradingsymbol=BANKNIFTY2241341700CE&transaction_type=BUY&order_type=MARKET&quantity=25&price=0&product=MIS&validity=DAY&validity_ttl=1&disclosed_quantity=0&trigger_price=0&variety=regular&tag=bsk&tag=bsk%3A9562390&gtt_params=&user_id=NNV006",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "exchange=NFO&tradingsymbol=BANKNIFTY2241341600CE&transaction_type=SELL&order_type=MARKET&quantity=25&price=0&product=MIS&validity=DAY&validity_ttl=1&disclosed_quantity=0&trigger_price=0&variety=regular&tag=bsk&tag=bsk%3A9562390&gtt_params=&user_id=NNV006",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/positions",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "variety=regular&exchange=NFO&tradingsymbol=BANKNIFTY2241341600CE&transaction_type=BUY&order_type=SL&quantity=25&price=2.6&product=MIS&validity=DAY&disclosed_quantity=0&trigger_price=2.5&squareoff=0&stoploss=0&trailing_stoploss=0&user_id=NNV006&",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+fetch("https://kite.zerodha.com/oms/portfolio/positions", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/positions",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+seing teh orders place
+
+fetch("https://kite.zerodha.com/oms/orders", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+exiting the sell order mis order
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/positions",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "variety=regular&exchange=NFO&tradingsymbol=BANKNIFTY2241341600CE&transaction_type=BUY&order_type=MARKET&quantity=25&price=0&product=MIS&validity=DAY&disclosed_quantity=0&trigger_price=0&squareoff=0&stoploss=0&trailing_stoploss=0&user_id=NNV006&",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+exiting the buy mis order
+
+fetch("https://kite.zerodha.com/oms/orders/regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/positions",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "variety=regular&exchange=NFO&tradingsymbol=BANKNIFTY2241341700CE&transaction_type=SELL&order_type=MARKET&quantity=25&price=0&product=MIS&validity=DAY&disclosed_quantity=0&trigger_price=0&squareoff=0&stoploss=0&trailing_stoploss=0&user_id=NNV006&",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+cancelling order
+
+fetch("https://kite.zerodha.com/oms/orders/regular/220412002607798?order_id=220412002607798&parent_order_id=&variety=regular", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken tML5kWEhtOIsKpTXJ9uchQ0hHV1+hFZjM7l0T8mSAvfbdg2eVqIdfmY6BEowTWv1W0VzPppoinEd6J36/af/q++U2eahzo0eGOtmi2RFVe5FORxvGl9YQQ==",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": null,
+  "method": "DELETE",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+adding item to basket
+
+fetch("https://kite.zerodha.com/api/baskets/9566533/items", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-csrftoken": "78NRSiCsM1hAiJNPVg2C4m7O6PMYbPqJ",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders/baskets",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "tradingsymbol=BANKNIFTY2241335200PE&exchange=NFO&weight=3&params=%7B%22transaction_type%22%3A%22BUY%22%2C%22product%22%3A%22MIS%22%2C%22order_type%22%3A%22MARKET%22%2C%22validity%22%3A%22DAY%22%2C%22validity_ttl%22%3A1%2C%22variety%22%3A%22regular%22%2C%22quantity%22%3A25%2C%22price%22%3A0%2C%22trigger_price%22%3A0%2C%22disclosed_quantity%22%3A0%7D",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+});
+
+
+modifying sl
+
+fetch("https://kite.zerodha.com/oms/orders/regular/220413001614601", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken pCXIjXVMxo+PukXYSDOe1kQG/nNhDboS1Hmt82EDsO3XosQmJmhllVkx23IkWsQEwtIUot92moEOO0a6WiA8kgNSZymZ4q1hy9bCedvLAZqIyN8HMuqo4w==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+  },
+  "referrer": "https://kite.zerodha.com/orders",
+  "referrerPolicy": "strict-origin-when-cross-origin",
+  "body": "variety=regular&exchange=NFO&tradingsymbol=BANKNIFTY2241337700CE&transaction_type=BUY&order_type=SL&quantity=25&price=550&product=MIS&validity=DAY&disclosed_quantity=0&trigger_price=132&squareoff=0&stoploss=0&trailing_stoploss=0&user_id=NNV006&&order_id=220413001614601&parent_order_id=",
+  "method": "PUT",
+  "mode": "cors",
+  "credentials": "include"
+});

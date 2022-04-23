@@ -1,0 +1,218 @@
+import random
+
+import requests
+from zerodha_classes import Position, Order
+from util import write_pickle_data, get_pickle_data
+import requests
+import json
+import datetime
+
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
+    'Authorization': 'enctoken D1tQVzvB7+qZJjrBVYiQHd8kA5htch1m1CjkFfAnldIA8hl22Tqj7e+mXK5hRsDspDTFNHjntF9fm+9ktb2uQXQGnHR/ammbN2JCTxfYVdJEujvSFgi5yQ==',
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"98\", \"Google Chrome\";v=\"98\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "XQ9712",
+    "x-kite-version": "2.9.10"
+}
+zerodha_header = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "authorization": "enctoken Eh7i4rCeXJ3FTH8so0pA1qk2FLyKg3X7B47yQVk+0C3guXbg8JWHIzGAgkBpwyuVkR9jLeygw3wIjRpSlKpkJjNPj9ZYIve9D3cnT2/8uptl5oQnI0AkJw==",
+    "cache-control": "no-cache",
+    "content-type": "application/x-www-form-urlencoded",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-kite-userid": "NNV006",
+    "x-kite-version": "2.9.11"
+}
+
+nse_header = {
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+    "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"99\", \"Google Chrome\";v=\"99\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1"
+}
+
+
+class ZerodhaApi:
+    def __init__(self, is_testing: bool):
+        self.is_testing = is_testing
+        print("")
+
+    def fetch_nse_data(self):
+        nse_option_chain_url = 'https://www.nseindia.com/api/option-chain-indices?symbol=BANKNIFTY'
+        if self.is_testing:
+            return get_pickle_data('nse_json_data')
+        else:
+            nse_response = requests.get(nse_option_chain_url, headers=nse_header)
+            nse_json_data = json.loads(nse_response.text)
+            write_pickle_data('nse_json_data', nse_json_data)
+            return nse_json_data
+
+    def place_regular_order(self, position: Position):
+        data = {
+            "exchange": "NFO",
+            "tradingsymbol": "BANKNIFTY2241341700CE",
+            "transaction_type": "BUY",
+            "order_type": "MARKET",
+            "quantity": "25",
+            "price": "0",
+            "product": "MIS",
+            "validity": "DAY",
+            "validity_ttl": "1",
+            "disclosed_quantity": "0",
+            "trigger_price": "0",
+            "variety": "regular",
+            "gtt_params": "",
+            "user_id": "NNV006"
+        }
+        data['tradingsymbol'] = position.symbol
+        data['transaction_type'] = position.sell_or_buy
+        if self.is_testing:
+            response = {"order_id": '220413000593839'}
+            place_order = Order(-1)
+        else:
+            response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
+            resp_json_data = json.loads(response.text)
+            order_id = resp_json_data['data']['order_id']
+            place_order = Order(order_id)
+        position.place_order = place_order
+        return response
+
+    def place_sl_order(self, position: Position, sl: float, quantity: int):
+        sl_trigger_price = round(position.get_premium() * sl)
+        sl_other_price = round(sl_trigger_price * 2)
+        data = {
+            "exchange": "NFO",
+            "tradingsymbol": "BANKNIFTY2241341700CE",
+            "transaction_type": "BUY",
+            "order_type": "MARKET",
+            "quantity": "25",
+            "price": "0",
+            "product": "MIS",
+            "validity": "DAY",
+            "disclosed_quantity": "0",
+            "trigger_price": "0",
+            "squareoff": 0,
+            "stoploss": 0,
+            "trailing_stoploss": 0,
+            "variety": "regular",
+            "user_id": "NNV006"
+        }
+
+        data['tradingsymbol'] = position.symbol
+        data['quantity'] = quantity
+        data['order_type'] = "SL"
+        data['price'] = sl_other_price
+        data['trigger_price'] = sl_trigger_price
+        if self.is_testing:
+            response = {}
+            sl_order = Order(-1)
+        else:
+            response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception occured while placing SL order tr.price:{sl_trigger_price} {position.symbol}:{position.sell_or_buy}:{position.option_type}')
+            resp_json_data = json.loads(response.text)
+            order_id = resp_json_data['data']['order_id']
+            sl_order = Order(order_id)
+        position.sl_order = sl_order
+        print(response)
+
+    def get_latest_b_nifty(self):
+        current_time = datetime.datetime.now()
+        today_date_str = current_time.strftime("%Y-%m-%d")
+        yesterday = current_time - datetime.timedelta(1)
+        yesterday_date_str = yesterday.strftime("%Y-%m-%d")
+        kite_url = f'https://kite.zerodha.com/oms/instruments/historical/260105/day?user_id=NNV006&oi=1&from={yesterday_date_str}&to={today_date_str}'
+        print(kite_url)
+        if self.is_testing:
+            spot_price = 34763
+        else:
+            response = requests.get(kite_url, headers=zerodha_header)
+            spot_price = json.loads(response.text)['data']['candles'][0][4]
+        return round(float(spot_price))
+
+    def get_zerodha_open_positions(self):
+        position_url = f'https://kite.zerodha.com/oms/portfolio/positions?hello={random.random()}'
+
+        if self.is_testing:
+            json_data = get_pickle_data("zerodha_positions")
+        else:
+            response = requests.get(position_url, headers=zerodha_header)
+            json_data = json.loads(response.text)
+
+        # write_pickle_data("zerodha_positions", json.loads(response.text))
+        positions = json_data["data"]["day"]
+        # print(response)
+        return positions
+
+    def get_zerodha_open_orders(self):
+        if self.is_testing:
+            orders_json = get_pickle_data("zerodha_orders")
+        else:
+            order_url = "https://kite.zerodha.com/oms/orders"
+            response = requests.get(order_url, headers=zerodha_header)
+            orders_json = json.loads(response.text)
+            write_pickle_data("zerodha_orders", orders_json)
+        return orders_json["data"]
+
+    def modify_stop_loss(self, position: Position, sl_trigger_price: float, sl_other_price: float):
+        data = {
+            "exchange": "NFO",
+            "tradingsymbol": "BANKNIFTY2241341700CE",
+            "transaction_type": "BUY",
+            "order_type": "MARKET",
+            "quantity": "25",
+            "price": "0",
+            "product": "MIS",
+            "validity": "DAY",
+            "disclosed_quantity": "0",
+            "trigger_price": "0",
+            "squareoff": 0,
+            "stoploss": 0,
+            "trailing_stoploss": 0,
+            "variety": "regular",
+            "user_id": "NNV006"
+        }
+        data['tradingsymbol'] = position.symbol
+        data['quantity'] = position.quantity
+        data['order_type'] = "SL"
+        data['price'] = sl_other_price
+        data['trigger_price'] = sl_trigger_price
+        data['order_id'] = position.sl_order.order_id
+        if self.is_testing:
+            response = {}
+        else:
+            response = requests.put(f'https://kite.zerodha.com/oms/orders/regular/{position.sl_order.order_id}',
+                                    headers=zerodha_header, data=data)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception while placing modify sl order trigger price:{sl_trigger_price} {position.symbol}:{position.sell_or_buy}:{position.option_type}')
+        print(response)

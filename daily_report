@@ -1,0 +1,2 @@
+trade_date,profit,week_day,start_prem,end_prem,atm,strike_price,sl,entry_spot_price,exit_spot_price,sl_hit_count,day_profit,prim_count,sec_count,other_sl_hit
+2019-02-20,-34.150000000000006,4,240.89999999999998,275.05,53600,53600,2,53787.0,53678.850000000006,4,-68.30000000000001,4,0,0
