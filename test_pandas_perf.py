@@ -4,7 +4,8 @@ import random
 import numpy as np
 import pandas as pd
 
-from option_util import get_minute_list, millis
+from option_util import get_minute_list, millis, load_nifty_min_data, load_india_vix_day_data, get_nifty_spot_price, \
+    get_nearest_thursday
 from util import get_pickle_data, write_pickle_data
 
 minute_list = get_minute_list('%H:%M:%S')
@@ -17,6 +18,8 @@ trade_intervals = ["0920", "0940", "1000", "1020", "1040",
                    "1100", "1120", "1140", "1200", "1220", "1240", "1300", "1320", "1340", "1400"]
 df_base_min_list = []
 df_base_day_list = []
+df_base_day_str_list = []
+df_base_india_vix_list = []
 
 df_minute_list = []
 df_day_list = []
@@ -69,7 +72,7 @@ def populate_list():
 
     base_minute_df = pd.DataFrame(
         {'day': df_base_day_list, 'minute': df_base_min_list},
-        df_base_min_list)
+        df_base_day_list)
 
     every_minute_df = pd.DataFrame(
         {'day': df_day_list, 'strike': df_strike_list, 'minute': df_minute_list, 'value': df_value_list},
@@ -172,62 +175,48 @@ def test_data():
     print(("time taken to read file", (millis() - start)))
 
 
-def get_nearest_thursday(curr_date, option_type, strike_index):
-    # start_time = datetime.datetime.strptime('2022-12-23', '%Y-%m-%d')
-    # print(start_time.strftime('%a'), start_time.strftime('%Y'))
-    d = curr_date.weekday()
-    days_to_thursday = 3 - d if (3 - d) >= 0 else 7 - (d - 3)
-    expiry_day = curr_date + datetime.timedelta(days=days_to_thursday)
-    expiry_year = expiry_day.strftime('%Y')[-2:]
-    expiry_month = int(expiry_day.strftime("%m"))
-    expiry_day = expiry_day.strftime("%d")
-    formatted_expiry_month = expiry_month if expiry_month < 10 else "O" if expiry_month == 10 else "N" if expiry_month == 11 else "D"
-    strike_price = 34000 + random.randrange(100 * strike_index, 100 * (strike_index + 1))
-    banknifty_ticker_symbol = f'BANKNIFTY{expiry_year}{formatted_expiry_month}{expiry_day}{strike_price}{option_type}'
-    return banknifty_ticker_symbol
-
-
 def new_test_data():
     start = millis()
+
+    print(f'time after trading days:{millis() - start}')
     all_strike_df = get_pickle_data('every_minute_df')
     base_minute_df = get_pickle_data('base_minute_df')
     all_atm_df = get_pickle_data('all_atm_df')
-
+    print(f'time after getting pickle data:{millis() - start}')
     df_only_9_20_pe = all_atm_df[(all_atm_df.interval == "0920") & (all_atm_df.option_type == "PE")]
     df_only_9_20_ce = all_atm_df[(all_atm_df.interval == "0920") & (all_atm_df.option_type == "CE")]
+    print(f'time after getting 920 strike symbol:{millis() - start}')
     print(len(df_only_9_20_pe), len(df_only_9_20_pe))
     _0920_pe_strike_df = pd.merge(all_strike_df, df_only_9_20_pe, how='inner', left_on=['day', 'strike'],
                                   right_on=['day', 'atm_option_strike'])
     _0920_ce_strike_df = pd.merge(all_strike_df, df_only_9_20_ce, how='inner', left_on=['day', 'strike'],
                                   right_on=['day', 'atm_option_strike'])
+    print(f'time after getting 920 strike ticker:{millis() - start}')
     print(len(_0920_ce_strike_df), len(_0920_ce_strike_df))
     _0920_straddle_df = pd.merge(base_minute_df, _0920_pe_strike_df, how='left', left_on=['day', 'minute'],
                                  right_on=['day', 'minute'])
     _0920_straddle_df = pd.merge(_0920_straddle_df, _0920_ce_strike_df, how='inner', left_on=['day', 'minute'],
                                  right_on=['day', 'minute'])
     print(len(_0920_straddle_df), len(_0920_straddle_df))
-
+    print(f'time after merging strike ticker to base:{millis() - start}')
     # df_0920_atm_strike.to_csv("df_0920.csv")
-    write_pickle_data('_0920_straddle_df', _0920_straddle_df)
-    print(f'time:{millis() - start}')
+    # write_pickle_data('_0920_straddle_df', _0920_straddle_df)
+    print(f'time before loop:{millis() - start}')
     values = _0920_straddle_df.values
-    # df_0920_atm_strike = df_0920_atm_strike[
-    #     (df_0920_atm_strike.minute >= "09:15:00") & (df_0920_atm_strike.minute <= "14:30:00")]
-    # base_df = base_df.join(day_premium_change_df)
-    # base_df[premium_change_col_name] = base_df[premium_change_col_name].replace(np.nan, 0)
-    # base_df[premium_change_col_name] = base_df[premium_change_col_name].cumsum()
-    # base_df['profit'] = base_df['profit'] + base_df[premium_change_col_name]
-    # print(values)
     done_days = []
     day_profit = 0
     day_profit_list = []
     for i in range(len(values)):
-        day = values[i][0]
-        if day not in done_days:
+        date_time = values[i][0]
+        if date_time not in done_days:
             day_profit = 0
-            done_days.append(day)
+            done_days.append(date_time)
             day_profit_list.append(day_profit)
         else:
+            in_date_format = datetime.datetime.fromtimestamp(date_time / 1000.0)
+            # get_nifty_spot_price(, close_candle['time'],
+            #                      self.day_tracker.nifty_min_data_dic,
+            #                      self.day_tracker.config.column_to_consider)
             day_profit = day_profit + 9
         # print()
     print(f'time:{millis() - start}', len(day_profit_list))

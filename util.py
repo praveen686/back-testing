@@ -1,5 +1,6 @@
 import pickle
 import datetime
+import random
 
 import constants
 
@@ -30,3 +31,13 @@ def get_today_date_in_str():
     current_time = datetime.datetime.now()
     today_date_str = current_time.strftime(constants.DATE_FORMAT)
     return today_date_str
+
+
+def get_date_in_str(date):
+    date_str = date.strftime(constants.DATE_FORMAT)
+    return date_str
+
+
+def get_date_from_str(date, date_format=constants.DATE_FORMAT):
+    date = datetime.datetime.strptime(date, date_format)
+    return date

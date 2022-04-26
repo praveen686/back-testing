@@ -1,3 +1,4 @@
+import random
 import time as time_  # make sure we don't override time
 import datetime
 import csv
@@ -234,7 +235,7 @@ def get_nifty_spot_price(date_str, time, nifty_min_data_dic, column_to_consider)
     # close_list = nifty_one_minute_df.loc[nifty_one_minute_df.index == search_date_time_string][
     #     column_to_consider]
     if search_date_time_string not in nifty_min_data_dic:
-        closest_key = [k for k in nifty_min_data_dic if k >= search_date_time_string][0]
+        # closest_key = [k for k in nifty_min_data_dic if k >= search_date_time_string][0]
         # return nifty_min_data_dic[closest_key][column_to_consider]
         return -1
     return nifty_min_data_dic[search_date_time_string][column_to_consider]
@@ -250,12 +251,29 @@ def get_minutes(start_time='09:20', end_time='09:30', step=10):
     return minute_list_str
 
 
-def get_minute_list(time_format: str):
+def get_minute_list(time_format: str, start_minute, end_minute):
     # print((entry_date_time_str, exit_date_time_str))
-    entry_date_time = datetime.datetime.strptime('2021-01-01 09:15:00', '%Y-%m-%d %H:%M:%S')
-    exit_date_time = datetime.datetime.strptime('2021-01-01 15:30:00', '%Y-%m-%d %H:%M:%S')
+    entry_date_time = datetime.datetime.strptime(f'2021-01-01 {start_minute}', '%Y-%m-%d %H:%M:%S')
+    # entry_date_time = datetime.datetime.strptime(f'2021-01-01 09:15:00', '%Y-%m-%d %H:%M:%S')
+    exit_date_time = datetime.datetime.strptime(f'2021-01-01 {end_minute}', '%Y-%m-%d %H:%M:%S')
+    # exit_date_time = datetime.datetime.strptime(f'2021-01-01 15:30:00', '%Y-%m-%d %H:%M:%S')
     time_diff = exit_date_time - entry_date_time
     minute_diff = (time_diff.total_seconds() / 60)
     minute_list = [entry_date_time + datetime.timedelta(minutes=it) for it in range(0, int(minute_diff + 1))]
     minute_str_list = [minute.strftime(time_format) for minute in minute_list]
     return minute_str_list
+
+
+def get_nearest_thursday(curr_date, option_type, strike_index):
+    # start_time = datetime.datetime.strptime('2022-12-23', '%Y-%m-%d')
+    # print(start_time.strftime('%a'), start_time.strftime('%Y'))
+    d = curr_date.weekday()
+    days_to_thursday = 3 - d if (3 - d) >= 0 else 7 - (d - 3)
+    expiry_day = curr_date + datetime.timedelta(days=days_to_thursday)
+    expiry_year = expiry_day.strftime('%Y')[-2:]
+    expiry_month = int(expiry_day.strftime("%m"))
+    expiry_day = expiry_day.strftime("%d")
+    formatted_expiry_month = expiry_month if expiry_month < 10 else "O" if expiry_month == 10 else "N" if expiry_month == 11 else "D"
+    strike_price = 34000 + random.randrange(100 * strike_index, 100 * (strike_index + 1))
+    banknifty_ticker_symbol = f'BANKNIFTY{expiry_year}{formatted_expiry_month}{expiry_day}{strike_price}{option_type}'
+    return banknifty_ticker_symbol
