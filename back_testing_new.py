@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd
 
 from option_util import get_minute_list, millis, load_nifty_min_data, load_india_vix_day_data, get_nifty_spot_price, \
-    get_nearest_thursday, get_india_vix, round_nearest, get_nearest_expiry, get_instrument_prefix
-from util import get_pickle_data, write_pickle_data, get_date_from_str
+    get_nearest_thursday, get_india_vix, round_nearest, get_nearest_expiry, get_instrument_prefix, \
+    get_ticker_data_by_expiry_and_strike
+from util import get_pickle_data, write_pickle_data, get_date_from_str, get_date_in_str
 
 minute_list = get_minute_list('%H:%M:%S', "09:15:00", "15:30:00")
 
@@ -44,6 +45,7 @@ def populate_list():
     start_strike_price = 34500
     expiry_df = pd.read_csv("expiry_df.csv")
     day_strike_index_list = get_pickle_data("day_strike_index_list")
+    weekly_option_data_files = get_pickle_data(f'b_nifty_weekly_option_data_files_till_20')
     start = millis()
     nifty_min_data_dic = load_nifty_min_data("BANKNIFTY")
     print(f'time:{millis() - start}')
@@ -67,22 +69,32 @@ def populate_list():
             df_nifty_spot_price_list.append(nifty_spot_price)
         #     get strike for the day
         for strike_price in strike_list:
-            strike_ticker_pe_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "PE")
-            strike_ticker_ce_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "CE")
-            for ticker in [strike_ticker_pe_symbol, strike_ticker_ce_symbol]:
+            # strike_ticker_pe_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "PE")
+            # strike_ticker_ce_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "CE")
+            for option_type in ["PE", "CE"]:
                 # strike_price = get_nearest_thursday(trading_date, "PE" if strike_index % 2 == 0 else "CE", strike_index)
                 # strike_list.append(strike_price)
-                for minute in minute_list:
+                trade_date_in_option_format = get_date_in_str(trading_date, "%m/%d/%Y")
+                strike_ticker_candles_for_trade_date_dic, expiry_date_str, ticker_prefix, ticker_file_name = \
+                    get_ticker_data_by_expiry_and_strike(
+                        strike_price, nearest_expiry_date, option_type, trade_date_in_option_format,
+                        weekly_option_data_files, "BANKNIFTY")
+                if len(strike_ticker_candles_for_trade_date_dic) < 300:
+                    print(
+                        f'>>>>>>< 300 for strike:{ticker_prefix}:{strike_price}:{trading_date_str} '
+                        f'size:{len(strike_ticker_candles_for_trade_date_dic)}')
+                for minute_key in strike_ticker_candles_for_trade_date_dic:
                     # print(random.randrange(100, 300, 3))
-                    df_value_list.append(random.randrange(100, 300, 3))
+                    df_value_list.append(strike_ticker_candles_for_trade_date_dic[minute_key]['close'])
                     df_day_list.append(date_time_in_secs)
                     df_day_str_list.append(trading_date_str)
                     df_strike_list.append(strike_price)
-                    df_minute_list.append(minute)
+                    df_minute_list.append(minute_key)
                     df_index_list.append(count)
                     count = count + 1
                     # print(count)
-        for trade_interval in trade_intervals:
+        # for trade_interval in trade_intervals:
+        for trade_interval in []:
             for option_type in ["PE", "CE"]:
                 atm_option_type_strike = [strike for strike in strike_list if option_type in strike][
                     random.randrange(0, 3)]

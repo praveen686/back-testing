@@ -33,8 +33,8 @@ def get_today_date_in_str():
     return today_date_str
 
 
-def get_date_in_str(date):
-    date_str = date.strftime(constants.DATE_FORMAT)
+def get_date_in_str(date, date_format=constants.DATE_FORMAT):
+    date_str = date.strftime(date_format)
     return date_str
 
 
