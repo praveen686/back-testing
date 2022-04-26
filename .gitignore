@@ -1,2 +1,8 @@
 /algo_trading_data/
 /trade_data/
+/every_minute_df
+/_0920_straddle_df
+df_0920.csv
+base_minute_df
+all_atm_df
+df_0920_atm_strike
