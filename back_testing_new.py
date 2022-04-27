@@ -5,6 +5,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
+import constants
 from option_util import get_minute_list, millis, load_nifty_min_data, load_india_vix_day_data, get_nifty_spot_price, \
     get_nearest_thursday, get_india_vix, round_nearest, get_nearest_expiry, get_instrument_prefix, \
     get_ticker_data_by_expiry_and_strike
@@ -22,14 +23,16 @@ df_base_min_list = []
 df_base_day_list = []
 df_base_day_str_list = []
 df_base_india_vix_list = []
-df_nifty_spot_price_list = []
+df_base_nifty_spot_price_list = []
 
 df_minute_list = []
 df_day_list = []
 df_day_str_list = []
-df_strike_list = []
+df_strike_price_list = []
+df_strike_ticker_symbol_list = []
 df_value_list = []
 df_index_list = []
+df_nifty_spot_price_list = []
 
 df_other_day_list = []
 df_other_day_str_list = []
@@ -40,7 +43,7 @@ df_other_option_type_list = []
 
 
 def populate_list():
-    count = 0
+    count_of_strike_min = 0
     start_time = 1546300800000
     start_strike_price = 34500
     expiry_df = pd.read_csv("expiry_df.csv")
@@ -55,19 +58,26 @@ def populate_list():
     print(f'time:{millis() - start}')
     trading_days_list = [trade_date.replace("T00:00:00+0530", "") for trade_date in trading_days_list]
     for trading_date_str in trading_days_list:
+        day_spot_price_list = []
+        day_ticker_symbols = []
         trading_date = get_date_from_str(trading_date_str)
         # day_time = start_time + (day * 86400000)
         date_time_in_secs = (trading_date - datetime.datetime(1970, 1, 1)).total_seconds()
         strike_list = get_strikes_by_day(day_strike_index_list, date_time_in_secs)
         nearest_expiry_date = get_nearest_expiry(trading_date_str, expiry_df)
+        instrument_prefix = get_instrument_prefix(get_date_in_str(nearest_expiry_date, constants.DATE_FORMAT),
+                                                  "BANKNIFTY")
         for minute in minute_list:
             df_base_min_list.append(minute)
             df_base_day_list.append(date_time_in_secs)
             df_base_day_str_list.append(trading_date_str)
             df_base_india_vix_list.append(get_india_vix(trading_date_str, india_vix_day_dic))
             nifty_spot_price = get_nifty_spot_price(trading_date_str, minute, nifty_min_data_dic, 'close')
-            df_nifty_spot_price_list.append(nifty_spot_price)
+            df_base_nifty_spot_price_list.append(nifty_spot_price)
+            day_spot_price_list.append(nifty_spot_price)
         #     get strike for the day
+        start_of_loop = millis()
+
         for strike_price in strike_list:
             # strike_ticker_pe_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "PE")
             # strike_ticker_ce_symbol = generate_ticker_symbol(nearest_expiry_date, strike_price, "CE")
@@ -75,59 +85,78 @@ def populate_list():
                 # strike_price = get_nearest_thursday(trading_date, "PE" if strike_index % 2 == 0 else "CE", strike_index)
                 # strike_list.append(strike_price)
                 trade_date_in_option_format = get_date_in_str(trading_date, "%m/%d/%Y")
+                candle_start = millis()
                 strike_ticker_candles_for_trade_date_dic, expiry_date_str, ticker_prefix, ticker_file_name = \
                     get_ticker_data_by_expiry_and_strike(
                         strike_price, nearest_expiry_date, option_type, trade_date_in_option_format,
                         weekly_option_data_files, "BANKNIFTY")
-                if len(strike_ticker_candles_for_trade_date_dic) < 300:
-                    print(
-                        f'>>>>>>< 300 for strike:{ticker_prefix}:{strike_price}:{trading_date_str} '
-                        f'size:{len(strike_ticker_candles_for_trade_date_dic)}')
+                # print("time taken for strike data>>>>", (millis() - candle_start), (millis() - start_of_loop))
+                # if len(strike_ticker_candles_for_trade_date_dic) < 300:
+                #     print(
+                #         f'>>>>>>< 300 for strike:{ticker_prefix}:{strike_price}:{trading_date_str} '
+                #         f'size:{len(strike_ticker_candles_for_trade_date_dic)}')
+                strike_ticker_symbol = f'{ticker_prefix}{strike_price}{option_type}'
                 for minute_key in strike_ticker_candles_for_trade_date_dic:
+                    nifty_spot_price = get_nifty_spot_price(trading_date_str, minute_key, nifty_min_data_dic, 'close')
+
                     # print(random.randrange(100, 300, 3))
                     df_value_list.append(strike_ticker_candles_for_trade_date_dic[minute_key]['close'])
                     df_day_list.append(date_time_in_secs)
                     df_day_str_list.append(trading_date_str)
-                    df_strike_list.append(strike_price)
+                    df_strike_price_list.append(strike_price)
+                    df_strike_ticker_symbol_list.append(strike_ticker_symbol)
                     df_minute_list.append(minute_key)
-                    df_index_list.append(count)
-                    count = count + 1
-                    # print(count)
+                    df_index_list.append(count_of_strike_min)
+                    df_nifty_spot_price_list.append(round_nearest(nifty_spot_price, 100))
+
+                    day_ticker_symbols.append(strike_ticker_symbol)
+                    count_of_strike_min = count_of_strike_min + 1
+                    # print("time taken each minute>>>>", (millis() - candle_start), (millis() - start_of_loop))
+                    print(count_of_strike_min)
         # for trade_interval in trade_intervals:
-        for trade_interval in []:
+        for trade_interval in trade_intervals:
+            minute_reformatted = f'{trade_interval[0:2]}:{trade_interval[2:4]}:00'
+            spot_price = get_nifty_spot_price(trading_date_str, minute_reformatted, nifty_min_data_dic, 'close')
+            spot_price_nearest = round_nearest(spot_price, 100)
             for option_type in ["PE", "CE"]:
-                atm_option_type_strike = [strike for strike in strike_list if option_type in strike][
-                    random.randrange(0, 3)]
-                atm_premium = random.randrange(100, 300, 3)
+                # atm_premium = random.randrange(100, 300, 3)
                 df_other_day_list.append(date_time_in_secs)
                 df_other_day_str_list.append(trading_date_str)
                 df_other_time_intervals.append(trade_interval)
-                df_other_atm_option_strike_list.append(atm_option_type_strike)
-                df_other_atm_premium_list.append(atm_premium)
+                df_other_atm_option_strike_list.append(f'{instrument_prefix}{spot_price_nearest}{option_type}')
+                # df_other_atm_premium_list.append(atm_premium)
                 df_other_option_type_list.append(option_type)
 
-    print(f'len of other day list:{len(df_other_day_list)}')
+    print(f'len of other day list:{len(df_other_day_list)},all strike:{len(df_day_list)}')
 
     base_minute_df = pd.DataFrame(
         {'day': df_base_day_list, 'day_str': df_base_day_str_list, 'minute': df_base_min_list,
-         "vix": df_base_india_vix_list, "spot": df_nifty_spot_price_list},
+         "vix": df_base_india_vix_list, "spot": df_base_nifty_spot_price_list},
         df_base_day_list)
 
     every_minute_df = pd.DataFrame(
-        {'day': df_day_list, 'day_str': df_day_str_list, 'strike': df_strike_list, 'minute': df_minute_list,
-         'value': df_value_list},
+        {'day': df_day_list, 'day_str': df_day_str_list, 'strike_price': df_strike_price_list,
+         'strike_ticker_symbol': df_strike_ticker_symbol_list, 'minute': df_minute_list, 'value': df_value_list},
         df_day_list)
 
     all_atm_df = pd.DataFrame(
         {'day': df_other_day_list, 'day_str': df_other_day_str_list, 'interval': df_other_time_intervals,
-         'atm_option_strike': df_other_atm_option_strike_list,
-         'atm_premium': df_other_atm_premium_list, "option_type": df_other_option_type_list},
+         'atm_option_strike': df_other_atm_option_strike_list, "option_type": df_other_option_type_list},
         df_other_day_list)
 
     write_pickle_data('every_minute_df', every_minute_df)
     write_pickle_data('all_atm_df', all_atm_df)
     write_pickle_data('base_minute_df', base_minute_df)
     print("done with iteration")
+
+
+def test_looping():
+    every_minute_df = get_pickle_data('every_minute_df')
+    start = millis()
+    values = every_minute_df.values
+    for value in values:
+        x = 3
+    print('time', millis() - start)
 
 
 def generate_ticker_symbol(expiry_date, strike_price, option_type):
@@ -148,20 +177,28 @@ def new_test_data():
     df_only_9_20_ce = all_atm_df[(all_atm_df.interval == "0920") & (all_atm_df.option_type == "CE")]
     print(f'time after getting 920 strike symbol:{millis() - start}')
     print(len(df_only_9_20_pe), len(df_only_9_20_pe))
-    _0920_pe_strike_df = pd.merge(all_strike_df, df_only_9_20_pe, how='inner', left_on=['day', 'strike'],
+    _0920_pe_strike_df = pd.merge(all_strike_df, df_only_9_20_pe[['day', 'atm_option_strike']], how='inner',
+                                  left_on=['day', 'strike_ticker_symbol'],
                                   right_on=['day', 'atm_option_strike'])
-    _0920_ce_strike_df = pd.merge(all_strike_df, df_only_9_20_ce, how='inner', left_on=['day', 'strike'],
+    _0920_ce_strike_df = pd.merge(all_strike_df, df_only_9_20_ce[['day', 'atm_option_strike']], how='inner',
+                                  left_on=['day', 'strike_ticker_symbol'],
                                   right_on=['day', 'atm_option_strike'])
     print(f'time after getting 920 strike ticker:{millis() - start}')
-    print(len(_0920_ce_strike_df), len(_0920_ce_strike_df))
-    _0920_straddle_df = pd.merge(base_minute_df, _0920_pe_strike_df, how='left', left_on=['day', 'minute'],
+    print(len(_0920_ce_strike_df), len(_0920_pe_strike_df))
+    # write_pickle_data('_0920_pe_strike_df', _0920_pe_strike_df)
+    # write_pickle_data('_0920_ce_strike_df', _0920_ce_strike_df)
+    _0920_straddle_df = pd.merge(base_minute_df,
+                                 _0920_pe_strike_df[['day', 'minute', 'strike_price', 'value', 'strike_ticker_symbol']],
+                                 how='left', left_on=['day', 'minute'],
                                  right_on=['day', 'minute'])
-    _0920_straddle_df = pd.merge(_0920_straddle_df, _0920_ce_strike_df, how='inner', left_on=['day', 'minute'],
-                                 right_on=['day', 'minute'])
+    _0920_straddle_df = pd.merge(_0920_straddle_df,
+                                 _0920_ce_strike_df[['day', 'minute', 'strike_price', 'value', 'strike_ticker_symbol']],
+                                 how='left', left_on=['day', 'minute'],
+                                 right_on=['day', 'minute'], suffixes=('_pe', '_ce'))
     print(len(_0920_straddle_df), len(_0920_straddle_df))
     print(f'time after merging strike ticker to base:{millis() - start}')
     # df_0920_atm_strike.to_csv("df_0920.csv")
-    # write_pickle_data('_0920_straddle_df', _0920_straddle_df)
+    write_pickle_data('_0920_straddle_df', _0920_straddle_df)
     print(f'time before loop:{millis() - start}')
     values = _0920_straddle_df.values
     done_days = []
@@ -183,6 +220,8 @@ def new_test_data():
     print(f'time:{millis() - start}', len(day_profit_list))
     # merge = pd.merge(trade_df_list[0], trade_df_list[1], how='inner', left_index=True, right_index=True)
 
+def analyze_profit():
+    print("")
 
 def get_all_nifty_strikes():
     trading_minute_list = get_minute_list('%H:%M:%S', "09:20:00", "14:30:00")
@@ -227,8 +266,9 @@ def get_strikes_by_day(day_strike_index_list: List, day: int):
 
 
 # test_data()
-populate_list()
-# new_test_data()
+# populate_list()
+new_test_data()
+# test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))
 # get_nearest_thursday()

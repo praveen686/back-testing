@@ -6,3 +6,8 @@ df_0920.csv
 base_minute_df
 all_atm_df
 df_0920_atm_strike
+day_strike_index_list
+/nifty_spot_df
+/_0920_ce_strike_df
+/_0920_pe_strike_df
+/every_minute_df_copy_apr_27_22
