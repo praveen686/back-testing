@@ -200,28 +200,108 @@ def new_test_data():
     # df_0920_atm_strike.to_csv("df_0920.csv")
     write_pickle_data('_0920_straddle_df', _0920_straddle_df)
     print(f'time before loop:{millis() - start}')
-    values = _0920_straddle_df.values
-    done_days = []
-    day_profit = 0
-    day_profit_list = []
-    for i in range(len(values)):
-        date_time = values[i][0]
-        if date_time not in done_days:
-            day_profit = 0
-            done_days.append(date_time)
-            day_profit_list.append(day_profit)
-        else:
-            # in_date_format = datetime.datetime.fromtimestamp(date_time / 1000.0)
-            # get_nifty_spot_price(, close_candle['time'],
-            #                      self.day_tracker.nifty_min_data_dic,
-            #                      self.day_tracker.config.column_to_consider)
-            day_profit = day_profit + 9
-        # print()
-    print(f'time:{millis() - start}', len(day_profit_list))
+
+    # print()
+    print(f'time:{millis() - start}')
     # merge = pd.merge(trade_df_list[0], trade_df_list[1], how='inner', left_index=True, right_index=True)
 
-def analyze_profit():
+
+class LegProfit:
+    def __init__(self):
+        # self.start_premium = None
+        # self.profit_list = []
+        self.minutes = []
+        self.premium_list = []
+        self.is_sl_hit = False
+
+    def get_profit(self):
+        if len(self.premium_list) > 0:
+            profit = float(self.premium_list[0]) - float(self.premium_list[-1])
+        else:
+            profit = 0
+        return profit
+
+    def check_sl(self, sl: float):
+        if len(self.premium_list) > 0:
+            sl_value = float(self.premium_list[0]) * sl * -1
+            if self.get_profit() < sl_value:
+                self.is_sl_hit = True
+
+
+class DayProfit:
+    def __init__(self):
+        self.pe_leg: LegProfit = None
+        self.ce_leg: LegProfit = None
+        self.profit = None
+        self.date_str = None
+
+    def get_profit(self):
+        return self.pe_leg.get_profit() + self.ce_leg.get_profit()
+
+
+def analyze_profit(start_date: str, end_date: str, sl: float):
+    start_analyze_time = millis()
+    _0920_straddle_df = get_pickle_data("_0920_straddle_df")
     print("")
+    values = _0920_straddle_df.values
+    day_profit_dic = {}
+    day_profit_list: [DayProfit] = []
+    curr_day_profit: DayProfit = None
+    nan_count = 0
+    index_start_date = [row[1] for row in values].index(start_date)
+    index_end_date = [row[1] for row in values].index(end_date)
+    start_minute = "09:20:00"
+    end_minute = "14:30:00"
+    for i in range(index_start_date, index_end_date):
+        ticker_row = values[i]
+        date_time = ticker_row[0]
+        ticker_minute = ticker_row[2]
+        date_str = ticker_row[1]
+        pe_ticker_symbol = ticker_row[7]
+        ce_ticker_symbol = ticker_row[10]
+        if ticker_minute < start_minute or ticker_minute > end_minute:
+            continue
+        pe_premium = ticker_row[6]
+        ce_premium = ticker_row[9]
+        if date_time not in day_profit_dic:
+            curr_day_profit = DayProfit()
+            curr_day_profit.date_str = date_str
+
+            pe_leg = LegProfit()
+            curr_day_profit.pe_leg = pe_leg
+
+            ce_leg = LegProfit()
+            curr_day_profit.ce_leg = ce_leg
+
+            day_profit_list.append(curr_day_profit)
+            day_profit_dic[date_time] = 1
+
+        # append profit
+        pe_leg = curr_day_profit.pe_leg
+        append_status = append_leg_profit(pe_leg, pe_premium, ticker_minute, sl)
+        if append_status is False:
+            nan_count = nan_count + 1
+
+        ce_leg = curr_day_profit.ce_leg
+        append_status = append_leg_profit(ce_leg, ce_premium, ticker_minute, sl)
+        if append_status is False:
+            nan_count = nan_count + 1
+
+    print("time taken>>", (millis() - start_analyze_time), len(day_profit_list),
+          sum([day_profit.get_profit() for day_profit in day_profit_list]))
+    print("nan_count", nan_count)
+
+
+def append_leg_profit(leg_profit: LegProfit, curr_premium: float, minute: str, sl: float):
+    if leg_profit.is_sl_hit:
+        return
+    if curr_premium == curr_premium:
+        leg_profit.premium_list.append(curr_premium)
+        leg_profit.minutes.append(minute)
+        leg_profit.check_sl(sl)
+    else:
+        return False
+
 
 def get_all_nifty_strikes():
     trading_minute_list = get_minute_list('%H:%M:%S', "09:20:00", "14:30:00")
@@ -267,7 +347,9 @@ def get_strikes_by_day(day_strike_index_list: List, day: int):
 
 # test_data()
 # populate_list()
-new_test_data()
+# new_test_data()
+# analyze_profit("2019-02-18", "2022-02-14", .2)
+analyze_profit("2019-02-18", "2020-01-01", .2)
 # test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))

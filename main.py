@@ -155,7 +155,7 @@ def run_test_with_confi():
 #     2021-03-17
 
 
-def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, days_to_trade, offset: str):
+def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, days_to_trade, offset: str, c2c: bool):
     trading_days = load_india_vix_day_data()
     date_key = f'{start_date}T00:00:00+0530'
     # '2021-06-07T00:00:00+0530'
@@ -164,7 +164,7 @@ def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, da
         return
     config: Config = Config(
         entry_times=[start_time, start_time, start_time, start_time, start_time],
-        exit_time="14:30:00", c2c=True,
+        exit_time="14:30:00", c2c=c2c,
         column_to_consider='close',
         days_to_trade=days_to_trade, india_vix_max_value=india_vix, track_sl_hit_leg=False, re_entry=0,
         re_entry_perc=20,
@@ -216,6 +216,6 @@ def generate_data_manually():
 
 
 if __name__ == '__main__':
-    generate_trade_data_by_start_time_and_sl()
+    # generate_trade_data_by_start_time_and_sl()
     # run_test_with_confi()
-    # run_the_test("09:20:00", .2, "2019-02-18", "2022-02-28", 50, [0, 1, 2, 3, 4])
+    run_the_test("09:20:00", .2, "2019-02-18", "2020-01-01", 50, [0, 1, 2, 3, 4], '[0, 0, 0, 0, 0]', False)
