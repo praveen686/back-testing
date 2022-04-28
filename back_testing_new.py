@@ -257,9 +257,12 @@ def analyze_profit(start_date: str, end_date: str, sl: float):
         date_time = ticker_row[0]
         ticker_minute = ticker_row[2]
         date_str = ticker_row[1]
+        india_vix = ticker_row[3]
         pe_ticker_symbol = ticker_row[7]
         ce_ticker_symbol = ticker_row[10]
         if ticker_minute < start_minute or ticker_minute > end_minute:
+            continue
+        if india_vix >= 50:
             continue
         pe_premium = ticker_row[6]
         ce_premium = ticker_row[9]
@@ -288,10 +291,8 @@ def analyze_profit(start_date: str, end_date: str, sl: float):
             nan_count = nan_count + 1
 
     print("time taken>>", (millis() - start_analyze_time), len(day_profit_list),
-          sum([day_profit.get_profit() for day_profit in day_profit_list]))
-    hello = pd.DataFrame({"profit": [round(day_profit.get_profit(), 2) for day_profit in day_profit_list]},
-                         [i for i in range(len(day_profit_list))])
-    hello.to_clipboard()
+          sum([round(day_profit.get_profit(), 2) for day_profit in day_profit_list]))
+
     print("nan_count", nan_count)
 
 
@@ -352,7 +353,7 @@ def get_strikes_by_day(day_strike_index_list: List, day: int):
 # populate_list()
 # new_test_data()
 # analyze_profit("2019-02-18", "2022-02-14", .2)
-analyze_profit("2019-02-18", "2020-01-01", .2)
+analyze_profit("2019-02-18", "2022-01-04", .2)
 # test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))
