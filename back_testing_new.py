@@ -289,6 +289,9 @@ def analyze_profit(start_date: str, end_date: str, sl: float):
 
     print("time taken>>", (millis() - start_analyze_time), len(day_profit_list),
           sum([day_profit.get_profit() for day_profit in day_profit_list]))
+    hello = pd.DataFrame({"profit": [round(day_profit.get_profit(), 2) for day_profit in day_profit_list]},
+                         [i for i in range(len(day_profit_list))])
+    hello.to_clipboard()
     print("nan_count", nan_count)
 
 

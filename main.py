@@ -155,7 +155,8 @@ def run_test_with_confi():
 #     2021-03-17
 
 
-def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, days_to_trade, offset: str, c2c: bool):
+def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, days_to_trade, offset: str, c2c: bool,
+                 write_to_file: bool):
     trading_days = load_india_vix_day_data()
     date_key = f'{start_date}T00:00:00+0530'
     # '2021-06-07T00:00:00+0530'
@@ -175,10 +176,11 @@ def run_the_test(start_time: str, sl: float, start_date, end_date, india_vix, da
     ], config, start_date, end_date)
     all_trades_local = []
     all_trades_local.extend(back_tester.all_trade_entries)
-    # back_test_trade_df = pd.DataFrame(all_trades_local)
-    # back_test_trade_df.index = pd.to_datetime(back_test_trade_df.trade_date)
-    # write_pickle_data('back_test_trade_df', back_test_trade_df)
-    # write_pickle_data('back_tester', back_tester)
+    if write_to_file:
+        back_test_trade_df = pd.DataFrame(all_trades_local)
+        back_test_trade_df.index = pd.to_datetime(back_test_trade_df.trade_date)
+        write_pickle_data('back_test_trade_df', back_test_trade_df)
+        write_pickle_data('back_tester', back_tester)
     return all_trades_local
 
 
@@ -218,4 +220,4 @@ def generate_data_manually():
 if __name__ == '__main__':
     # generate_trade_data_by_start_time_and_sl()
     # run_test_with_confi()
-    run_the_test("09:20:00", .2, "2019-02-18", "2020-01-01", 50, [0, 1, 2, 3, 4], '[0, 0, 0, 0, 0]', False)
+    run_the_test("09:20:00", .2, "2019-02-18", "2020-01-01", 50, [0, 1, 2, 3, 4], '[0, 0, 0, 0, 0]', False, True)
