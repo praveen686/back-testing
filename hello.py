@@ -1,4 +1,5 @@
 import re
+from itertools import groupby
 from typing import List
 import datetime
 import pandas as pd
@@ -6,6 +7,14 @@ import numpy as np
 
 from option_util import get_minutes
 
+elem1 = {"222": "ee"}
+elem2 = {"bbb": "ee"}
+elem_list = [elem1, elem2]
+elem_list.remove(elem2)
+print(elem_list)
+
+group_by_test = [{"class": 1, "name": "anoop"}, {"class": 2, "name": "anil"}, {"class": 1, "name": "raju"}]
+grouped_data = [list(g) for k, g in groupby(sorted(group_by_test, key=lambda xy: xy["class"]), lambda xy: xy["class"])]
 test = "44,eee"
 print(test.split(",")[1])
 
