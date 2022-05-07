@@ -190,6 +190,9 @@ class LegTrade:
             self.profit_by_time.append(curr_profit)
         # print("wee", millis() - start_time)
 
+    def set_sl(self, sl_status: bool):
+        self.is_sl_hit = sl_status
+
     def get_profit(self, minute_index: int):
         profit = self.profit_by_time[minute_index]
         return profit
@@ -215,6 +218,10 @@ class LegPair:
         self.pe_leg.walk(minute_index, self.start_min_index, sl)
         self.ce_leg.walk(minute_index, self.start_min_index, sl)
 
+    def set_sl(self, sl_status: bool):
+        self.pe_leg.set_sl(sl_status)
+        self.ce_leg.set_sl(sl_status)
+
     def get_profit(self, minute_index=-1):
         return self.pe_leg.get_profit(minute_index) + self.ce_leg.get_profit(minute_index)
 
@@ -223,8 +230,11 @@ class DayTrade:
     def __init__(self, leg_pair_dic: Dict[str, LegPair], trade_date_str: str, india_vix: int):
         self.leg_pair_dic: Dict[str, LegPair] = leg_pair_dic
         self.trade_date_str: str = trade_date_str
-        self.filtered_leg_pairs_by_time: [LegPair] = None
+        self.filtered_leg_pairs_by_time: List[LegPair] = None
         self.india_vix = india_vix
+        self.profit_tracker = []
+
+        self.is_target_profit_reached = False
 
     def set_leg_pairs_by_straddle_times(self, straddle_times: List[str]):
         self.filtered_leg_pairs_by_time = []
@@ -238,12 +248,31 @@ class DayTrade:
                 print("x")
 
     def walk(self, minute_index, sl: float):
+        day_profit_so_far = 0
         for leg_pair in self.filtered_leg_pairs_by_time:
             leg_pair.walk_leg(minute_index, sl)
+            day_profit_so_far = day_profit_so_far + leg_pair.get_profit(minute_index)
+        self.profit_tracker.append(day_profit_so_far)
+
+        if day_profit_so_far > 90:
+            self.is_target_profit_reached = True
+        if self.is_target_profit_reached:
+            if day_profit_so_far < 45:
+                print("reached..*************************")
+                self.set_sl_for_all(True)
+
+    def set_sl_for_all(self, sl_status):
+        for leg_pair in self.filtered_leg_pairs_by_time:
+            leg_pair.set_sl(sl_status)
 
     def get_profit(self):
         total_profit = sum([leg_pair.get_profit() for leg_pair in self.filtered_leg_pairs_by_time])
         return total_profit
+
+    def max_profit_reached(self):
+        if len(self.profit_tracker) == 0:
+            print("e")
+        return max(self.profit_tracker)
 
 
 def get_start_minute_index(start_time_str: str):
@@ -276,12 +305,14 @@ def analyze_interval_trades(straddle_times: List[str]):
         day_profit = round(day_trade.get_profit(), 2)
         print(f'{day_trade.trade_date_str},{day_profit}')
         total_profit = total_profit + day_profit
-        profit_tracker.append({"profit": day_profit, "date": day_trade.trade_date_str})
+        profit_tracker.append(
+            {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached()})
 
     print(total_profit, (millis() - analyze_start_time))
 
     win_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] > 0]
     loss_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] < 0]
+    max_days = [day_profit["max"] for day_profit in profit_tracker if day_profit["max"] > 40]
     # loss_days_with_pos_profit = [day_profit for day_profit in loss_days if max(day_profit.profit_list) > 20]
     # hello.to_clipboard()
     mean_profit = mean_loss = None
@@ -320,4 +351,4 @@ def generate_ticker_symbol(expiry_date, strike_price, option_type):
 
 # get_all_atm_strikes_by_interval()
 # generate_day_trades_by_interval()
-analyze_interval_trades(["0920"])
+analyze_interval_trades(["0940", "1040", "1140", "1240"])
