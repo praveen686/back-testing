@@ -195,186 +195,6 @@ def populate_list():
     print("done with iteration")
 
 
-def get_all_atm_strikes_by_interval():
-    strike_count = 0
-    df_other_day_list = []
-    df_other_day_str_list = []
-    df_other_time_intervals = []
-    df_other_atm_option_strike_list = []
-    df_other_atm_premium_list = []
-    df_other_option_type_list = []
-    df_other_index_strike_ticker = []
-    atm_strikes_by_interval: Dict[str, List[LegTrade]] = {}
-
-    nifty_min_data_dic = load_nifty_min_data("BANKNIFTY")
-    india_vix_day_dic = load_india_vix_day_data()
-    trading_days_list = list(india_vix_day_dic.keys())
-    trading_days_list = [trade_date.replace("T00:00:00+0530", "") for trade_date in trading_days_list]
-    expiry_df = pd.read_csv("expiry_df.csv")
-    start_time = millis()
-    for trading_date_str in trading_days_list:
-        trading_date = get_date_from_str(trading_date_str)
-        date_time_in_secs = (trading_date - datetime.datetime(1970, 1, 1)).total_seconds()
-        nearest_expiry_date = get_nearest_expiry(trading_date_str, expiry_df)
-        instrument_prefix = get_instrument_prefix(get_date_in_str(nearest_expiry_date, constants.DATE_FORMAT),
-                                                  "BANKNIFTY")
-
-        for trade_interval in trade_intervals:
-            minute_reformatted = f'{trade_interval[0:2]}:{trade_interval[2:4]}:00'
-            spot_price = get_nifty_spot_price(trading_date_str, minute_reformatted, nifty_min_data_dic, 'close')
-            spot_price_nearest = round_nearest(spot_price, 100)
-            for option_type in ["PE", "CE"]:
-                strike_count = strike_count + 1
-                df_other_day_list.append(date_time_in_secs)
-                df_other_day_str_list.append(trading_date_str)
-                df_other_time_intervals.append(trade_interval)
-                strike_ticker_symbol = f'{instrument_prefix}{spot_price_nearest}{option_type}'
-                df_other_atm_option_strike_list.append(strike_ticker_symbol)
-                interval_key = f'{strike_ticker_symbol}|{trading_date_str}'
-                if interval_key not in atm_strikes_by_interval:
-                    atm_strikes_by_interval[interval_key] = [LegTrade(trade_interval, trading_date_str,
-                                                                      strike_ticker_symbol)]
-                else:
-                    atm_strikes_by_interval[interval_key].append(LegTrade(trade_interval, trading_date_str,
-                                                                          strike_ticker_symbol))
-        # atm_premium = random.randrange(100, 300, 3)
-
-    print("strike count", strike_count)
-    print(f'len of atm_strikes_by_interval:{len(atm_strikes_by_interval)},all strike:{len(df_day_list)}')
-    write_pickle_data('atm_strikes_by_interval', atm_strikes_by_interval)
-    print("time taken>>>", (millis() - start_time))
-
-
-class LegTrade:
-    def __init__(self, straddle_time: str, trade_date: str, ticker_symbol: str):
-        self.straddle_time: str = straddle_time
-        self.straddle_date: str = trade_date
-        self.ticker_symbol = ticker_symbol
-        self.premium_tickers = []
-        self.profit_by_time = []
-        self.is_sl_hit = False
-        self.sl_hit_index: int = None
-
-    def walk(self, minute_index, start_index, sl: float):
-        tickers = list(filter(lambda x: x == x, self.premium_tickers[start_index:minute_index + 1]))
-        if len(tickers) == 0:
-            self.profit_by_time.append(0)
-        else:
-            if self.is_sl_hit is False:
-                curr_profit = round(float(tickers[0]) - float(tickers[-1]), 2)
-                if curr_profit < sl * float(tickers[0]) * -1:
-                    self.is_sl_hit = True
-                    self.sl_hit_index = minute_index
-            else:
-                curr_profit = self.profit_by_time[-1]
-            self.profit_by_time.append(curr_profit)
-
-    def get_profit(self, minute_index: int):
-        return self.profit_by_time[minute_index]
-        # print(self.profit_by_time)
-
-
-class LegPair:
-    minutes_till_0915 = (9 * 60) + 15
-
-    def __init__(self, start_time_str: str, pe_leg_trade: LegTrade, ce_leg_trade: LegTrade):
-        self.start_time_str = start_time_str
-        start_hour_part = int(start_time_str[:2])
-        start_min_part = int(start_time_str[2:])
-        start_min = (start_hour_part * 60) + start_min_part
-        self.start_min_index = (start_min - LegPair.minutes_till_0915) - 1
-        self.pe_leg: LegTrade = pe_leg_trade
-        self.ce_leg: LegTrade = ce_leg_trade
-
-    def walk_leg(self, minute_index, sl: float):
-        self.pe_leg.walk(minute_index, self.start_min_index, sl)
-        self.ce_leg.walk(minute_index, self.start_min_index, sl)
-
-    def get_profit(self, minute_index=-1):
-        return self.pe_leg.get_profit(minute_index) + self.ce_leg.get_profit(minute_index)
-
-
-class DayTrade:
-    def __init__(self, leg_pairs: List[LegPair], trade_date_str: str):
-        self.leg_pairs: List[LegPair] = leg_pairs
-        self.trade_date_str: str = trade_date_str
-
-    def walk(self, interval: str, minute_index, sl: float):
-        for leg_pair in list(filter(lambda x: x.start_time_str == interval, self.leg_pairs)):
-            leg_pair.walk_leg(minute_index, sl)
-
-    def get_profit(self, interval: str):
-        profit = sum(
-            [leg_pair.get_profit() for leg_pair in
-             list(filter(lambda x: x.start_time_str == interval, self.leg_pairs))])
-        return profit
-
-
-def analyze_interval_trades(interval: str):
-    day_trades: List[DayTrade] = get_pickle_data("day_trades")
-    day_trades = list(filter(lambda x: x.trade_date_str == '2019-02-18', day_trades))
-    total_profit = 0
-    for day_trade in day_trades:
-        for minute_index in range(len(minute_list)):
-            day_trade.walk(interval, minute_index, .2)
-        print(day_trade.leg_pairs[0].pe_leg.straddle_date)
-        total_profit = total_profit + (day_trade.get_profit(interval))
-    print(total_profit)
-
-
-def generate_leg_trade():
-    leg_trade_dic: Dict[str, LegTrade] = {}
-    every_minute_df = get_pickle_data('every_minute_df')
-    row_entries = every_minute_df.values
-    for row_entry in row_entries:
-        leg_trade_key = None
-
-
-def generate_day_trades_by_interval():
-    total_count_of_strikes = 0
-    every_minute_df = get_pickle_data('every_minute_df')
-    row_entries = every_minute_df.values
-    atm_strikes_by_interval_src_list: Dict[str, List[LegTrade]] = get_pickle_data('atm_strikes_by_interval')
-    atm_strikes_by_interval_dest_list = []
-    start_time = millis()
-    # for index, row_entry in enumerate(row_entries):
-    all_interval_leg_trades: List[LegTrade] = []
-    active_leg_trades: List[LegTrade] = None
-    for index, row_entry in enumerate(row_entries):
-        if row_entry[4] == "09:15:00":
-            total_count_of_strikes = total_count_of_strikes + 1
-            leg_trade_strike_key = f'{row_entry[3]}|{row_entry[1]}'  # a combination of symbol and date
-            if leg_trade_strike_key in atm_strikes_by_interval_src_list:
-                active_leg_trades = atm_strikes_by_interval_src_list[leg_trade_strike_key]
-                all_interval_leg_trades.extend(active_leg_trades)
-            else:
-                active_leg_trades = None
-        if active_leg_trades is not None:
-            for active_leg_trade in active_leg_trades:
-                active_leg_trade.premium_tickers.append(row_entry[5])  # catching premium
-    grouped_leg_trade_by_date: List[List[LegTrade]] = [list(g) for k, g in
-                                                       groupby(sorted(all_interval_leg_trades,
-                                                                      key=lambda xy: xy.straddle_date),
-                                                               lambda xy: xy.straddle_date)]
-
-    day_trades: List[DayTrade] = []
-    for date_leg_trades in grouped_leg_trade_by_date:
-        leg_pairs: List[LegPair] = []
-        leg_trade_pairs: List[List[LegTrade]] = [list(g) for k, g in
-                                                 groupby(
-                                                     sorted(date_leg_trades, key=lambda xy: xy.straddle_time),
-                                                     lambda xy: xy.straddle_time)]
-        for leg_trade_pair in leg_trade_pairs:
-            leg_pair: LegPair = LegPair(leg_trade_pair[0].straddle_time, leg_trade_pair[0], leg_trade_pair[1])
-            leg_pairs.append(leg_pair)
-        day_trades.append(DayTrade(leg_pairs, date_leg_trades[0].straddle_date))
-
-    write_pickle_data("day_trades", day_trades)
-    # print(x_temp, total_count_of_strikes)
-    # print(len(atm_strikes_by_interval_dest_list))
-    print(millis() - start_time)
-
-
 def test_looping():
     every_minute_df = get_pickle_data('every_minute_df')
     start = millis()
@@ -606,6 +426,8 @@ def analyze_profit(start_date: str, end_date: str, sl: float, target_profit: int
 
     print("time taken>>", (millis() - start_analyze_time), len(day_profit_list),
           sum([round(day_profit.get_profit(), 2) for day_profit in day_profit_list]))
+    for day_profit in day_profit_list:
+        print(f'{day_profit.date_str},{round(day_profit.get_profit(), 2)}')
     # hello = pd.DataFrame({"profit": [round(day_profit.get_profit(), 2) for day_profit in day_profit_list]},
     #                      [i for i in range(len(day_profit_list))])
 
@@ -613,11 +435,15 @@ def analyze_profit(start_date: str, end_date: str, sl: float, target_profit: int
     win_days = [day_profit for day_profit in day_profit_list if day_profit.get_profit() > 0]
     # loss_days_with_pos_profit = [day_profit for day_profit in loss_days if max(day_profit.profit_list) > 20]
     # hello.to_clipboard()
-    mean_profit = sum([day_profit.get_profit() for day_profit in win_days]) / len(win_days)
-    mean_loss = sum([day_profit.get_profit() for day_profit in loss_days]) / len(loss_days)
-    print(
-        f'win:{len(win_days)},loss:{len(loss_days)},ratio:{round(len(win_days) / len(loss_days), 2)}, win mean:{round(mean_profit, 2)}'
-        f',mean loss:{round(mean_loss, 2)} ,rr:{round(mean_profit / mean_loss, 2)}')
+    mean_profit = mean_loss = None
+    if len(win_days) > 0:
+        mean_profit = sum([day_profit.get_profit() for day_profit in win_days]) / len(win_days)
+    if len(loss_days) > 0:
+        mean_loss = sum([day_profit.get_profit() for day_profit in loss_days]) / len(loss_days)
+    if mean_profit is not None and mean_loss is not None:
+        print(
+            f'win:{len(win_days)},loss:{len(loss_days)},ratio:{round(len(win_days) / len(loss_days), 2)}, win mean:{round(mean_profit, 2)}'
+            f',mean loss:{round(mean_loss, 2)} ,rr:{round(mean_profit / mean_loss, 2)}')
 
     print("nan_count", nan_count, (millis() - start_analyze_time))
 
@@ -625,14 +451,14 @@ def analyze_profit(start_date: str, end_date: str, sl: float, target_profit: int
 # test_data()
 # get_all_atm_strikes_by_interval()
 # generate_day_trades_by_interval()
-analyze_interval_trades("0920")
+# analyze_interval_trades("0920")
 # populate_list()
 # new_test_data()
 # test_all_strike_df_perf()
-# analyze_profit("2019-02-18", "2019-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
+# analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2021-01-01", "2021-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
-# analyze_profit("2019-02-18", "2022-02-14", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
+analyze_profit("2019-02-18", "2022-02-14", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))
