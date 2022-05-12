@@ -167,6 +167,7 @@ class LegTrade:
         self.is_sl_hit = False
         self.sl_hit_index: int = None
         self.india_vix = india_vix
+        self.is_c2c_set = False
 
     def walk(self, minute_index, start_index, sl: float):
         start_time = millis()
@@ -214,9 +215,18 @@ class LegPair:
         self.selected_straddle_time: str = None
         self.start_min_index = None
 
-    def walk_leg(self, minute_index, sl: float):
+    def walk_leg(self, minute_index, sl: float, is_c2c_enabled: bool):
         self.pe_leg.walk(minute_index, self.start_min_index, sl)
         self.ce_leg.walk(minute_index, self.start_min_index, sl)
+        if is_c2c_enabled:
+            self.set_c2c(self.pe_leg, self.ce_leg)
+            self.set_c2c(self.ce_leg, self.pe_leg)
+
+    def set_c2c(self, hit_leg: LegTrade, other_leg: LegTrade):
+        # if the sl of the other leg is already hit, you dont have the change the sl there as it doesnt do any purpose but only helps capturing wrog dat
+        if hit_leg.is_sl_hit and (other_leg.is_c2c_set is False and other_leg.is_sl_hit is False):
+            other_leg.is_c2c_set = True
+            other_leg.sl = 0
 
     def set_sl(self, sl_status: bool):
         self.pe_leg.set_sl(sl_status)
@@ -247,19 +257,23 @@ class DayTrade:
             else:
                 print("x")
 
-    def walk(self, minute_index, sl: float):
+    def walk(self, minute_index, sl: float, target_profit: int, trailing_sl: int, stop_at_target: bool,
+             is_c2c_enabled: bool):
         day_profit_so_far = 0
         for leg_pair in self.filtered_leg_pairs_by_time:
-            leg_pair.walk_leg(minute_index, sl)
+            leg_pair.walk_leg(minute_index, sl, is_c2c_enabled)
             day_profit_so_far = day_profit_so_far + leg_pair.get_profit(minute_index)
         self.profit_tracker.append(day_profit_so_far)
 
-        if day_profit_so_far > 90:
-            self.is_target_profit_reached = True
-        if self.is_target_profit_reached:
-            if day_profit_so_far < 45:
-                print("reached..*************************")
-                self.set_sl_for_all(True)
+        if target_profit != -1:
+            if day_profit_so_far > target_profit:
+                self.is_target_profit_reached = True
+                if stop_at_target:
+                    self.set_sl_for_all(True)
+            if self.is_target_profit_reached:
+                if day_profit_so_far < trailing_sl:
+                    # print("reached..*************************")
+                    self.set_sl_for_all(True)
 
     def set_sl_for_all(self, sl_status):
         for leg_pair in self.filtered_leg_pairs_by_time:
@@ -284,30 +298,39 @@ def get_start_minute_index(start_time_str: str):
     return start_min_index
 
 
-def analyze_interval_trades(straddle_times: List[str]):
+def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date: str, regular_sl_perc: float,
+                            target_profit: int, trailing_sl: int, stop_at_target: bool, allowed_week_day: int,
+                            is_c2c_enabled: bool):
     # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
     analyze_start_time = millis()
     day_trades: List[DayTrade] = get_pickle_data("day_trades")
     # 2019-10-27
-    day_trades = [day_trade for day_trade in day_trades if '2019-02-18' <= day_trade.trade_date_str <= "2022-02-11"]
+    day_trades = [day_trade for day_trade in day_trades if start_date <= day_trade.trade_date_str <= end_date]
     # day_trades = [day_trade for day_trade in day_trades if '2019-10-27' <= day_trade.trade_date_str <= "2019-10-27"]
     # filter(lambda x: '2019-02-18' <= x.trade_date_str <= "2022-02-14", day_trades))
     total_profit = 0
     trading_minute_list = get_minute_list('%H:%M:%S', "09:15:00", "14:30:00")
     profit_tracker: List[{}] = []
     for day_trade in day_trades:
+        day_trade_date = get_date_from_str(day_trade.trade_date_str)
+        trade_week_day = day_trade_date.weekday()
+        if allowed_week_day != -1 and trade_week_day != allowed_week_day:
+            continue
         if day_trade.india_vix > 50:
             continue
         # start_time = millis()
         day_trade.set_leg_pairs_by_straddle_times(straddle_times)
         for minute_index in range(len(trading_minute_list)):
-            day_trade.walk(minute_index, .6)
+            day_trade.walk(minute_index, regular_sl_perc, target_profit, trailing_sl, stop_at_target, is_c2c_enabled)
         day_profit = round(day_trade.get_profit(), 2)
-        print(f'{day_trade.trade_date_str},{day_profit}')
+        # print(f'{day_trade.trade_date_str},{day_profit}')
         total_profit = total_profit + day_profit
         profit_tracker.append(
-            {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached()})
+            {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached(),
+             "week_day": trade_week_day})
 
+    day_profit_df = pd.DataFrame(profit_tracker, [i for i in range(len(profit_tracker))])
+    write_pickle_data('day_profit_df', day_profit_df)
     print(total_profit, (millis() - analyze_start_time))
 
     win_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] > 0]
@@ -318,12 +341,17 @@ def analyze_interval_trades(straddle_times: List[str]):
     mean_profit = mean_loss = None
     if len(win_days) > 0:
         mean_profit = sum(win_days) / len(win_days)
+    else:
+        mean_profit = 0
     if len(loss_days) > 0:
         mean_loss = sum(loss_days) / len(loss_days)
-    if mean_profit is not None and mean_loss is not None:
-        print(
-            f'total profit:{total_profit} win:{len(win_days)},loss:{len(loss_days)},ratio:{round(len(win_days) / len(loss_days), 2)}, win mean:{round(mean_profit, 2)}'
-            f',mean loss:{round(mean_loss, 2)} ,rr:{round(mean_profit / mean_loss, 2)}')
+    else:
+        mean_loss = 0
+    w_l_days_ratio = 'full' if len(loss_days) == 0 else round(len(win_days) / len(loss_days), 2)
+    r_r_ratio = 'na' if mean_loss == 0 else round(mean_profit / mean_loss, 2)
+    print(
+        f'total profit:{total_profit} win:{len(win_days)},loss:{len(loss_days)},ratio:{w_l_days_ratio}, win mean:{round(mean_profit, 2)}'
+        f',mean loss:{round(mean_loss, 2)} ,rr:{r_r_ratio}')
 
 
 def generate_leg_trade():
@@ -351,4 +379,49 @@ def generate_ticker_symbol(expiry_date, strike_price, option_type):
 
 # get_all_atm_strikes_by_interval()
 # generate_day_trades_by_interval()
-analyze_interval_trades(["0940", "1040", "1140", "1240"])
+# analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', .6, 90, 45, 3, True)
+# analyze_interval_trades(["0920", "1020", "1120", "1220"], '2019-02-18', '2022-02-11', -1, 45, 3)
+# analyze_interval_trades(["0920", "1020", "1120", "1220"], '2019-02-18', '2022-02-11', -1, 45, 2)
+# analyze_interval_trades(["0920", "1020", "1120", "1220"], '2019-02-18', '2022-02-11', -1, 45, 0)
+# analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', 90, 45, 0)
+# analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', -1, 45, 0)
+
+# entire 3 yeares
+if False:
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-01-18', '2022-02-11', .2, 90, 45,
+                            stop_at_target=True, allowed_week_day=0, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', .2, 90, 45,
+                            stop_at_target=True, allowed_week_day=1, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', .6, 90, 45,
+                            stop_at_target=True, allowed_week_day=2, is_c2c_enabled=True)
+    analyze_interval_trades(["0920", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', .6, 90, 45,
+                            stop_at_target=True, allowed_week_day=3, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11', .2, 90, 45,
+                            stop_at_target=True, allowed_week_day=4, is_c2c_enabled=True)
+# analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11',  .2, -1, 45, 4, True)
+
+# only for the current year.
+if True:
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
+                            stop_at_target=False, allowed_week_day=0, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
+                            stop_at_target=False, allowed_week_day=1, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 90, 45,
+                            stop_at_target=False, allowed_week_day=2, is_c2c_enabled=True)
+    analyze_interval_trades(["0920", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 90, 45,
+                            stop_at_target=False, allowed_week_day=3, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
+                            stop_at_target=False, allowed_week_day=4, is_c2c_enabled=True)
+
+# with 7 trades in a day
+if False:
+    analyze_interval_trades(["0940", "1020", "1040", "1120", "1140", "1200", "1240"], '2019-01-18', '2022-02-11', .2,
+                            90, 45, stop_at_target=True, allowed_week_day=0, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1020", "1040", "1120", "1140", "1200", "1240"], '2019-01-18', '2022-02-11', .2,
+                            90, 45, stop_at_target=True, allowed_week_day=1, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1020", "1040", "1120", "1140", "1200", "1240"], '2019-01-18', '2022-02-11', .6,
+                            90, 45, stop_at_target=True, allowed_week_day=2, is_c2c_enabled=True)
+    analyze_interval_trades(["0920", "1020", "1040", "1120", "1140", "1200", "1240"], '2019-01-18', '2022-02-11', .6,
+                            90, 45, stop_at_target=True, allowed_week_day=3, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1020", "1040", "1120", "1140", "1200", "1240"], '2019-01-18', '2022-02-11', .2,
+                            90, 45, stop_at_target=True, allowed_week_day=4, is_c2c_enabled=True)

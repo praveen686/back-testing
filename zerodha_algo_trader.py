@@ -117,7 +117,7 @@ class ZerodhaBrokingAlgo:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
     def place_straddle_order(self, sl: float, quantity: int):
-        # load existing straddle if any from the file
+        # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
         straddle = self.prepare_option_legs(sl, quantity)
         self.straddle_list.append(straddle)
@@ -154,6 +154,7 @@ class ZerodhaBrokingAlgo:
         zerodha_orders = self.zerodha_api.get_zerodha_open_orders()
         # todo check whether you need to call separately to pull the orders or is it part of the order place response
         self.attach_zerodha_order(straddle, zerodha_orders, "SL")
+        # this will save the final list present under straddle_list
         self.save_straddle_in_file()
 
     # def get_average_sell_price(self, symbol: str, positions: List):
