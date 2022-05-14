@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import List
 
 from kiteconnect import KiteTicker, KiteConnect
 import threading
@@ -27,35 +28,48 @@ kite_url = 'https://kite.trade/connect/login?api_key=gui6ggv8t8t5almq&v=3'
 # token gui6ggv8t8t5almq:
 
 
-class MyTicker:
-    def __init__(self):
-        self.kws = KiteTicker("gui6ggv8t8t5almq", 'wlfylKrL1KjreOnXy47b02TVAl7aHQgS')
+class MyTicker(threading.Thread):
+    def __init__(self, access_token, tokens_to_subscribe: List[str]):
+        threading.Thread.__init__(self)
+        self.kite_ticker = KiteTicker("gui6ggv8t8t5almq", access_token)
+        self.tokens_to_subscribe = tokens_to_subscribe
+
+    def run(self):
+        self.connect(False)
 
     def on_ticks(self, ws, ticks):
         # Callback to receive ticks.
         logging.debug("Tickseeee: {}".format(ticks))
 
     def on_connect(self, ws, response):
+        logging.debug("start subscribing")
         # Callback on successful connect.
         # Subscribe to a list of instrument_tokens (RELIANCE and ACC here).
         ws.subscribe([738561, 5633])
 
         # Set RELIANCE to tick in `full` mode.
-        ws.set_mode(ws.MODE_FULL, [738561])
+        # ws.set_mode(ws.MODE_FULL, [738561])
+        ws.set_mode(ws.MODE_LTP, [5633, 738561])
 
     def on_close(self, ws, code, reason):
+        logging.debug("stopping connection")
         # On connection close stop the main loop
         # Reconnection will not happen after executing `ws.stop()`
-        ws.stop()
+        # ws.stop()
 
     # Assign the callbacks.
 
     def connect(self, new_thread: bool):
-        self.kws.on_ticks = self.on_ticks
-        self.kws.on_connect = self.on_connect
-        self.kws.on_close = self.on_close
-        self.kws.connect(new_thread)
+        self.kite_ticker.on_ticks = self.on_ticks
+        self.kite_ticker.on_connect = self.on_connect
+        self.kite_ticker.on_close = self.on_close
+        self.kite_ticker.connect(new_thread)
 
+    def is_ticker_connected(self):
+        return hasattr(self.kite_ticker, 'ws') and self.kite_ticker.is_connected()
+
+    def stop_gracefully(self):
+        self.kite_ticker.close()
 
 # Infinite loop on the main thread. Nothing after this will run.
 # You have to use the pre-defined callbacks to manage subscriptions.

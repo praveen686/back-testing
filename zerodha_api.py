@@ -1,6 +1,9 @@
 import random
+from typing import Dict
 
 import requests
+
+import constants
 from zerodha_classes import Position, Order
 from util import write_pickle_data, get_pickle_data
 import requests
@@ -72,7 +75,7 @@ class ZerodhaApi:
             write_pickle_data('nse_json_data', nse_json_data)
             return nse_json_data
 
-    def place_regular_order(self, position: Position):
+    def place_regular_order(self, position: Position, access_token: str):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -95,6 +98,7 @@ class ZerodhaApi:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(
@@ -105,7 +109,7 @@ class ZerodhaApi:
         position.place_order = place_order
         return response
 
-    def place_sl_order(self, position: Position, sl: float, quantity: int):
+    def place_sl_order(self, position: Position, sl: float, quantity: int, access_token: str):
         sl_trigger_price = round(position.get_premium() * sl)
         sl_other_price = round(sl_trigger_price * 2)
         data = {
@@ -135,6 +139,7 @@ class ZerodhaApi:
             response = {}
             sl_order = Order(-1)
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(
@@ -145,7 +150,7 @@ class ZerodhaApi:
         position.sl_order = sl_order
         print(response)
 
-    def get_latest_b_nifty(self):
+    def get_latest_b_nifty(self, access_token: str):
         current_time = datetime.datetime.now()
         today_date_str = current_time.strftime("%Y-%m-%d")
         yesterday = current_time - datetime.timedelta(1)
@@ -155,16 +160,18 @@ class ZerodhaApi:
         if self.is_testing:
             spot_price = 34763
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             response = requests.get(kite_url, headers=zerodha_header)
             spot_price = json.loads(response.text)['data']['candles'][0][4]
         return round(float(spot_price))
 
-    def get_zerodha_open_positions(self):
+    def get_zerodha_open_positions(self, access_token: str):
         position_url = f'https://kite.zerodha.com/oms/portfolio/positions?hello={random.random()}'
 
         if self.is_testing:
             json_data = get_pickle_data("zerodha_positions")
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             response = requests.get(position_url, headers=zerodha_header)
             json_data = json.loads(response.text)
 
@@ -173,17 +180,18 @@ class ZerodhaApi:
         # print(response)
         return positions
 
-    def get_zerodha_open_orders(self):
+    def get_zerodha_open_orders(self, access_token: str):
         if self.is_testing:
             orders_json = get_pickle_data("zerodha_orders")
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             order_url = "https://kite.zerodha.com/oms/orders"
             response = requests.get(order_url, headers=zerodha_header)
             orders_json = json.loads(response.text)
             write_pickle_data("zerodha_orders", orders_json)
         return orders_json["data"]
 
-    def modify_stop_loss(self, position: Position, sl_trigger_price: float, sl_other_price: float):
+    def modify_stop_loss(self, position: Position, sl_trigger_price: float, sl_other_price: float, access_token: str):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -210,9 +218,14 @@ class ZerodhaApi:
         if self.is_testing:
             response = {}
         else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
             response = requests.put(f'https://kite.zerodha.com/oms/orders/regular/{position.sl_order.order_id}',
                                     headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(
                     f'exception while placing modify sl order trigger price:{sl_trigger_price} {position.symbol}:{position.sell_or_buy}:{position.option_type}')
         print(response)
+
+    @staticmethod
+    def set_auth_header(header: Dict, access_token: str):
+        header['authorization'] = f'token {constants.API_KEY}:{access_token}'

@@ -35,8 +35,10 @@ class Position:
 
 class Straddle:
 
-    def __init__(self, buy_pe_position: Position, buy_ce_position: Position, sell_pe_position: Position,
+    def __init__(self, trade_time: str, buy_pe_position: Position, buy_ce_position: Position,
+                 sell_pe_position: Position,
                  sell_ce_position: Position):
+        self.trade_time = trade_time
         self.buy_pe_position: Position = buy_pe_position
         self.buy_ce_position: Position = buy_ce_position
         self.sell_pe_position: Position = sell_pe_position

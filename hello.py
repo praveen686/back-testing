@@ -7,6 +7,23 @@ import numpy as np
 
 from option_util import get_minutes
 
+
+class Anoop:
+    anoop_instance = None
+
+    def __init__(self):
+        self.test = True
+        Anoop.anoop_instance = self
+
+    @staticmethod
+    def get_instance():
+        return Anoop.anoop_instance
+
+
+anoop1 = Anoop()
+hello: Anoop = Anoop.get_instance()
+print(hello.test)
+
 elem1 = {"222": "ee"}
 elem2 = {"bbb": "ee"}
 elem_list = [elem1, elem2]

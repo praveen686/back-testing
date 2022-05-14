@@ -1,3 +1,4 @@
+import threading
 import time
 import calendar
 from typing import List, Dict
@@ -253,3 +254,21 @@ class ZerodhaBrokingAlgo:
         #     # position = Position(symbol, option_type, sell_or_buy, quantity, spot_price, strike_price, sl)
         #     print(position)
         # position1= Position(symbol, "PE", "SELL", 25, spot_price, strike_price, sl)
+
+
+class TradePlacer(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+    def run(self):
+        start_time = time.time()
+        check_interval = 5
+        while True:
+            local_start_time = time.time()
+            print("about to check")
+            # zerodha.analyze_existing_positions()
+            local_end_time = time.time()
+            print(f'done checking; time taken:{round(local_end_time - local_start_time)}')
+            time.sleep(check_interval - ((time.time() - start_time) % check_interval))
+            local_end_time = time.time()
+            print(f'done with sleep; time taken:{round(local_end_time - local_start_time)}')
