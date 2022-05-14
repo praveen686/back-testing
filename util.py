@@ -33,6 +33,11 @@ def get_today_date_in_str():
     return today_date_str
 
 
+def get_current_min_in_str():
+    current_time = datetime.datetime.now()
+    return current_time.strftime('%H:%M')
+
+
 def get_date_in_str(date, date_format=constants.DATE_FORMAT):
     date_str = date.strftime(date_format)
     return date_str

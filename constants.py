@@ -1,3 +1,5 @@
 DATE_FORMAT = "%Y-%m-%d"
 HOUR_MIN_TIME_FORMAT = '%H%M'
 API_KEY = "gui6ggv8t8t5almq"
+API_SECRET = "p6q7g13y509l5m5fpnw9tkr44rguh0qb"
+BANKNIFTY_LOT_SIZE = 25

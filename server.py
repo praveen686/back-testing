@@ -1,9 +1,13 @@
+from typing import Dict
+
 from flask import Flask, request, jsonify, make_response, send_from_directory
 from kiteconnect import KiteTicker, KiteConnect
 
-import TradeData
+import constants
+from trade_setup import DayTrade
+import trade_setup
 from AnalyzeData import analyze_data
-from util import get_pickle_data, write_pickle_data
+from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer
 from zerodha_kiteconnect_algo_trading import MyTicker
 
@@ -46,13 +50,22 @@ def home():
 @app.route("/zerodha", methods=["GET", "OPTIONS"])
 # this sets the route to this page
 def zerodha():
+    trading_data_by_date: Dict[str, trade_setup.DayTrade] = get_pickle_data("trading_data_by_date")
+    trade_setup.AllTrade.trading_data_by_date = trading_data_by_date
     kite_url = 'https://kite.trade/connect/login?api_key=gui6ggv8t8t5almq&v=3'
     print(request.args)
-    data = kite.generate_session(request.args['request_token'], api_secret="p6q7g13y509l5m5fpnw9tkr44rguh0qb")
+    data = kite.generate_session(request.args['request_token'], api_secret=constants.API_SECRET)
     print(data["access_token"])
-    write_pickle_data("access_token", data["access_token"])
-    TradeData.Data.access_token = str(data["access_token"])
-    return {"": ""}
+    access_token = data['access-token']
+    today_date_str: str = get_today_date_in_str()
+    day_trading_data: DayTrade = trading_data_by_date[today_date_str]
+    if day_trading_data is not None:
+        raise Exception(f'data should not be present for the date:{today_date_str}')
+    day_trading_data = DayTrade(today_date_str, access_token)
+    trading_data_by_date[today_date_str] = day_trading_data
+
+    # write_pickle_data("access_token", data["access_token"])
+    return {"status": True}
 
 
 @app.route("/ticker", methods=["GET", "OPTIONS"])
@@ -99,3 +112,5 @@ def _corsify_actual_response(response):
 # back_tester = get_pickle_data("back_tester")
 if __name__ == "__main__":
     app.run()
+    trade_placer = TradePlacer()
+    trade_placer.start()
