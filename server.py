@@ -8,7 +8,7 @@ from trade_setup import DayTrade
 import trade_setup
 from AnalyzeData import analyze_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
-from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo
+from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
 from zerodha_kiteconnect_algo_trading import MyTicker
 
 app = Flask(__name__, static_folder="hello")
@@ -67,11 +67,16 @@ def zerodha():
     if trade_placer is None:
         trade_placer = TradePlacer()
         trade_placer.start()
+    position_analyzer = PositionAnalyzer.position_analyzer
+    if position_analyzer is None:
+        position_analyzer = PositionAnalyzer()
+        position_analyzer.start()
     day_trade = DayTrade(today_date_str, access_token)
     trading_data_by_date[today_date_str] = day_trade
     # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
     zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
     trade_placer.zerodha_algo_trader = zerodha_algo_trader
+    position_analyzer.zerodha_algo_trader = zerodha_algo_trader
 
     # write_pickle_data("access_token", data["access_token"])
     return {"status": True}

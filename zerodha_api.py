@@ -75,8 +75,9 @@ class ZerodhaApi:
             write_pickle_data('nse_json_data', nse_json_data)
             return nse_json_data
 
-    def exit_all_open_positions(self, zerodha_open_positions, access_token: str):
-        for position in zerodha_open_positions:
+    def exit_all_open_positions(self, zerodha_positions, access_token: str):
+        open_positions = [position for position in zerodha_positions if position['quantity'] > 0]
+        for position in open_positions:
             buy_quantity = position['buy_quantity']
             sell_quantity = position['sell_quantity']
             position['transaction_type'] = 'SELL' if buy_quantity > 0 else 'BUY'

@@ -181,11 +181,14 @@ class ZerodhaBrokingAlgo:
         print(f'total profit:{total_profit}')
 
         if self.target_profit != -1:
+            if self.target_profit_reached:
+                if total_profit <= self.trailing_sl:
+                    self.zerodha_api.exit_all_open_positions(self.zerodha_positions, self.day_trade.access_token)
             if total_profit > self.target_profit:
                 self.target_profit_reached = True
                 if self.trailing_sl == -1:
-                    open_positions = [position for position in self.zerodha_positions if position['quantity'] > 0]
-                    self.zerodha_api.exit_all_open_positions(open_positions, self.day_trade.access_token)
+                    # case when we want take the profit and exit without trailing sl
+                    self.zerodha_api.exit_all_open_positions(self.zerodha_positions, self.day_trade.access_token)
         #
         # this is to avoid calling it for second straddle if its already invoked
         is_order_n_position_fetched = False
@@ -286,6 +289,26 @@ class ZerodhaBrokingAlgo:
         #     # position = Position(symbol, option_type, sell_or_buy, quantity, spot_price, strike_price, sl)
         #     print(position)
         # position1= Position(symbol, "PE", "SELL", 25, spot_price, strike_price, sl)
+
+
+class PositionAnalyzer(threading.Thread):
+    position_analyzer = None
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        PositionAnalyzer.position_analyzer = self
+        self.stop_running = False
+        self.zerodha_algo_trader: ZerodhaBrokingAlgo = None
+
+    def run(self):
+        start_time = time.time()
+        check_interval = 5
+        while True:
+            local_start_time = time.time()
+            print("about to check")
+            today_date_str = get_today_date_in_str()
+            self.zerodha_algo_trader.analyze_existing_positions()
+            time.sleep(check_interval - ((time.time() - start_time) % check_interval))
 
 
 class TradePlacer(threading.Thread):
