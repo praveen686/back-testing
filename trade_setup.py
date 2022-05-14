@@ -5,12 +5,13 @@ from zerodha_kiteconnect_algo_trading import MyTicker
 
 
 class DayTrade:
+    ticker_tracker: MyTicker = None
 
     def __init__(self, date_str: str, access_token: str):
         self.date_str: str = date_str
         self.access_token: str = access_token
         self.straddle_by_time: Dict[str, Straddle] = {}
-        self.ltp: Dict[str, float] = {}
+        self.ltp: Dict[int, float] = {}
 
 
 class AllTrade:

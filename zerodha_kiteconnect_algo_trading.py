@@ -5,6 +5,8 @@ from typing import List
 from kiteconnect import KiteTicker, KiteConnect
 import threading
 
+from trade_setup import DayTrade
+
 logging.basicConfig(level=logging.DEBUG)
 
 logging.basicConfig(level=logging.DEBUG)
@@ -29,8 +31,9 @@ kite_url = 'https://kite.trade/connect/login?api_key=gui6ggv8t8t5almq&v=3'
 
 
 class MyTicker(threading.Thread):
-    def __init__(self, access_token, tokens_to_subscribe: List[str]):
+    def __init__(self, access_token, tokens_to_subscribe: List[int], day_trade: DayTrade):
         threading.Thread.__init__(self)
+        self.day_trade = day_trade
         self.kite_ticker = KiteTicker("gui6ggv8t8t5almq", access_token)
         self.tokens_to_subscribe = tokens_to_subscribe
 
@@ -40,12 +43,14 @@ class MyTicker(threading.Thread):
     def on_ticks(self, ws, ticks):
         # Callback to receive ticks.
         logging.debug("Tickseeee: {}".format(ticks))
+        for tick in ticks:
+            self.day_trade.ltp[tick['instrument_token']] = tick['last_price']
 
     def on_connect(self, ws, response):
         logging.debug("start subscribing")
         # Callback on successful connect.
         # Subscribe to a list of instrument_tokens (RELIANCE and ACC here).
-        ws.subscribe([738561, 5633])
+        ws.subscribe(self.tokens_to_subscribe)
 
         # Set RELIANCE to tick in `full` mode.
         # ws.set_mode(ws.MODE_FULL, [738561])

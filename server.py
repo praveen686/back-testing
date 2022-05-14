@@ -8,7 +8,7 @@ from trade_setup import DayTrade
 import trade_setup
 from AnalyzeData import analyze_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
-from zerodha_algo_trader import TradePlacer
+from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo
 from zerodha_kiteconnect_algo_trading import MyTicker
 
 app = Flask(__name__, static_folder="hello")
@@ -58,11 +58,20 @@ def zerodha():
     print(data["access_token"])
     access_token = data['access-token']
     today_date_str: str = get_today_date_in_str()
-    day_trading_data: DayTrade = trading_data_by_date[today_date_str]
-    if day_trading_data is not None:
+    day_trade: DayTrade = trading_data_by_date[today_date_str]
+    if day_trade is not None:
         raise Exception(f'data should not be present for the date:{today_date_str}')
-    day_trading_data = DayTrade(today_date_str, access_token)
-    trading_data_by_date[today_date_str] = day_trading_data
+
+    # this checking is done so that there will be only one instance of Trade Placer. Like Singleton class in Java
+    trade_placer = TradePlacer.trade_placer_instance
+    if trade_placer is None:
+        trade_placer = TradePlacer()
+        trade_placer.start()
+    day_trade = DayTrade(today_date_str, access_token)
+    trading_data_by_date[today_date_str] = day_trade
+    # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
+    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
+    trade_placer.zerodha_algo_trader = zerodha_algo_trader
 
     # write_pickle_data("access_token", data["access_token"])
     return {"status": True}

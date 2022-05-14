@@ -75,7 +75,14 @@ class ZerodhaApi:
             write_pickle_data('nse_json_data', nse_json_data)
             return nse_json_data
 
-    def place_regular_order(self, position: Position, access_token: str):
+    def exit_all_open_positions(self, zerodha_open_positions, access_token: str):
+        for position in zerodha_open_positions:
+            buy_quantity = position['buy_quantity']
+            sell_quantity = position['sell_quantity']
+            position['transaction_type'] = 'SELL' if buy_quantity > 0 else 'BUY'
+            self.exit_position(position, access_token)
+
+    def exit_position(self, position, access_token: str):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -92,6 +99,37 @@ class ZerodhaApi:
             "gtt_params": "",
             "user_id": "NNV006"
         }
+        data['quantity'] = position['quantity']
+        data['tradingsymbol'] = position['tradingsymbol']
+        data['transaction_type'] = position['transaction_type']
+        if self.is_testing:
+            response = {"order_id": '220413000593839'}
+            place_order = Order(-1)
+        else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
+
+    def place_regular_order(self, position: Position, access_token: str, quantity: int):
+        data = {
+            "exchange": "NFO",
+            "tradingsymbol": "BANKNIFTY2241341700CE",
+            "transaction_type": "BUY",
+            "order_type": "MARKET",
+            "quantity": "25",
+            "price": "0",
+            "product": "MIS",
+            "validity": "DAY",
+            "validity_ttl": "1",
+            "disclosed_quantity": "0",
+            "trigger_price": "0",
+            "variety": "regular",
+            "gtt_params": "",
+            "user_id": "NNV006"
+        }
+        data['quantity'] = quantity
         data['tradingsymbol'] = position.symbol
         data['transaction_type'] = position.sell_or_buy
         if self.is_testing:
