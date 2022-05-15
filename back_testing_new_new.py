@@ -105,6 +105,7 @@ def get_all_atm_strikes_by_interval():
 def generate_day_trades_by_interval():
     total_count_of_strikes = 0
     every_minute_df = get_pickle_data('every_minute_df')
+    # this has all the entries for all the symbols
     row_entries = every_minute_df.values
     atm_strikes_by_interval_src_list: Dict[str, List[LegTrade]] = get_pickle_data('atm_strikes_by_interval')
     atm_strikes_by_interval_dest_list = []
@@ -113,6 +114,7 @@ def generate_day_trades_by_interval():
     all_interval_leg_trades: List[LegTrade] = []
     active_leg_trades: List[LegTrade] = None
     for index, row_entry in enumerate(row_entries):
+        # whenever 9:15 is reached, will append the premium to a new LegTrade fetched from 'atm_strikes_by_interval'
         if row_entry[4] == "09:15:00":
             total_count_of_strikes = total_count_of_strikes + 1
 
@@ -319,6 +321,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
         if day_trade.india_vix > 50:
             continue
         # start_time = millis()
+        # only work in LegPairs whose interval matches the one that is present in the parameter
         day_trade.set_leg_pairs_by_straddle_times(straddle_times)
         for minute_index in range(len(trading_minute_list)):
             day_trade.walk(minute_index, regular_sl_perc, target_profit, trailing_sl, stop_at_target, is_c2c_enabled)
@@ -332,6 +335,16 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     day_profit_df = pd.DataFrame(profit_tracker, [i for i in range(len(profit_tracker))])
     write_pickle_data('day_profit_df', day_profit_df)
     print(total_profit, (millis() - analyze_start_time))
+    result = {}
+
+    day_profit_df.index = pd.to_datetime(day_profit_df.date)
+    per_month_df = day_profit_df.resample('M').agg(
+        {'profit': 'sum', 'date': 'min'})
+    result['negative_months_count'] = len(per_month_df[per_month_df.profit < 0])
+    # result['negative_months'] = ",".join(map(str, per_month_df[per_month_df.profit < 0].profit.values))
+    result['lowest_monthly_profit'] = round(per_month_df.sort_values('profit').profit.values[0])
+    result['max_monthly_profit'] = round(per_month_df.sort_values('profit').profit.values[-1])
+    # result['tot_profit'] = round(per_day_df.profit.sum())
 
     win_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] > 0]
     loss_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] < 0]
@@ -351,7 +364,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     r_r_ratio = 'na' if mean_loss == 0 else round(mean_profit / mean_loss, 2)
     print(
         f'total profit:{total_profit} win:{len(win_days)},loss:{len(loss_days)},ratio:{w_l_days_ratio}, win mean:{round(mean_profit, 2)}'
-        f',mean loss:{round(mean_loss, 2)} ,rr:{r_r_ratio}')
+        f',mean loss:{round(mean_loss, 2)} ,rr:{r_r_ratio} result:{result}')
 
 
 def generate_leg_trade():

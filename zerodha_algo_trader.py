@@ -19,7 +19,8 @@ from zerodha_kiteconnect_algo_trading import MyTicker
 
 
 class ZerodhaBrokingAlgo:
-    def __init__(self, is_testing: bool, sleep_time: int, day_trade: DayTrade, target_profit: int, trailing_sl: int):
+    def __init__(self, is_testing: bool, sleep_time: int, day_trade: DayTrade, target_profit: int, trailing_sl: int,
+                 set_c2c: bool):
         print("")
         self.is_testing = is_testing
         self.straddle_list: List[Straddle] = []
@@ -30,6 +31,7 @@ class ZerodhaBrokingAlgo:
         self.target_profit = target_profit
         self.target_profit_reached = True
         self.trailing_sl = trailing_sl
+        self.set_c2c = set_c2c
 
     def prepare_option_legs(self, sl: float, quantity: int) -> Straddle:
         ce_option_type = "CE"
@@ -172,11 +174,11 @@ class ZerodhaBrokingAlgo:
     #                        position["tradingsymbol"] == symbol][0]
     #     return float(symbol_position['sell_price'])
 
-    def analyze_existing_positions(self, access_token: str, set_c2c: bool, set_trailing_sl: bool):
+    def analyze_existing_positions(self):
         # load existing straddle if any from the file
         self.load_straddles_from_file()
 
-        self.zerodha_positions = self.zerodha_api.get_zerodha_open_positions(access_token)
+        self.zerodha_positions = self.zerodha_api.get_zerodha_open_positions(self.day_trade.access_token)
         total_profit = self.get_current_profit(self.zerodha_positions)
         print(f'total profit:{total_profit}')
 
@@ -208,16 +210,10 @@ class ZerodhaBrokingAlgo:
             sell_pe_position: Position = straddle.sell_pe_position
             sell_ce_position: Position = straddle.sell_ce_position
 
-            if set_c2c:
-                self.handle_c2c_sl(sell_pe_position, sell_ce_position, access_token)
-                self.handle_c2c_sl(sell_ce_position, sell_pe_position, access_token)
+            if self.set_c2c:
+                self.handle_c2c_sl(sell_pe_position, sell_ce_position, self.day_trade.access_token)
+                self.handle_c2c_sl(sell_ce_position, sell_pe_position, self.day_trade.access_token)
 
-            # check the ltp of existing positions and set the trailing sl
-            if set_trailing_sl:
-                if not sell_pe_position.sl_order.is_trailing_sl_set:
-                    self.handle_trailing_sl(sell_pe_position, access_token)
-                if not sell_ce_position.sl_order.is_trailing_sl_set:
-                    self.handle_trailing_sl(sell_ce_position, access_token)
         self.save_straddle_in_file()
 
     # setting other leg to c2c if a leg is hit
@@ -230,22 +226,22 @@ class ZerodhaBrokingAlgo:
             self.zerodha_api.modify_stop_loss(other_position, sl_trigger_price, sl_other_price, access_token)
             other_position.sl_order.is_c2c_set = True
 
-    def handle_trailing_sl(self, algo_position: Position, access_token: str):
-        zerodha_positions = [zerodha_position for zerodha_position in self.zerodha_positions if
-                             zerodha_position['tradingsymbol'] == algo_position.symbol]
-        if len(zerodha_positions) == 0:
-            raise Exception(f'symbol {algo_position.symbol} not in the list')
-        placed_order = algo_position.place_order
-        sell_price = float(placed_order.zerodha_order["average_price"])
-        last_price = float(zerodha_positions[0]["last_price"])
-        # todo see whether you could keep on modifying trailing sl
-        if (last_price / sell_price) < .2:
-            print("set trailing stop loss")
-            new_trigger_price = round(sell_price * .3)
-            other_price = new_trigger_price * 2
-            time.sleep(self.sleep_time)
-            self.zerodha_api.modify_stop_loss(algo_position, new_trigger_price, other_price, access_token)
-            algo_position.sl_order.is_trailing_sl_set = True
+    # def handle_trailing_sl(self, algo_position: Position, access_token: str):
+    #     zerodha_positions = [zerodha_position for zerodha_position in self.zerodha_positions if
+    #                          zerodha_position['tradingsymbol'] == algo_position.symbol]
+    #     if len(zerodha_positions) == 0:
+    #         raise Exception(f'symbol {algo_position.symbol} not in the list')
+    #     placed_order = algo_position.place_order
+    #     sell_price = float(placed_order.zerodha_order["average_price"])
+    #     last_price = float(zerodha_positions[0]["last_price"])
+    #     # todo see whether you could keep on modifying trailing sl
+    #     if (last_price / sell_price) < .2:
+    #         print("set trailing stop loss")
+    #         new_trigger_price = round(sell_price * .3)
+    #         other_price = new_trigger_price * 2
+    #         time.sleep(self.sleep_time)
+    #         self.zerodha_api.modify_stop_loss(algo_position, new_trigger_price, other_price, access_token)
+    #         algo_position.sl_order.is_trailing_sl_set = True
 
     def get_current_profit(self, positions):
         total_profit = 0
