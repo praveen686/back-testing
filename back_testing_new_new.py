@@ -173,12 +173,15 @@ class LegTrade:
 
     def walk(self, minute_index, start_index, sl: float):
         start_time = millis()
+        # if the interval time hasnt reached.
         if minute_index >= start_index:
             ticker_premium = self.premium_tickers[minute_index]
+            # this is to check whether its not nan
             if ticker_premium == ticker_premium:
                 self.valid_prem_tickers.append(ticker_premium)
 
         # print("wee", millis() - start_time)
+        # appending profit to the profit tracker, it will be 0 if no valid premium present so far.
         if len(self.valid_prem_tickers) == 0:
             self.profit_by_time.append(0)
         else:
@@ -245,8 +248,12 @@ class DayTrade:
         self.filtered_leg_pairs_by_time: List[LegPair] = None
         self.india_vix = india_vix
         self.profit_tracker = []
-
+        # this profit is different from other, as this will cause the flow to stop if this profit has been reached.
+        self.is_stop_at_target_profit_reached = False
+        # even though this profit is reached, it will still check for trailing sl
         self.is_target_profit_reached = False
+        # after reaching above profit, if falls below trailing sl, the process will be stopped.
+        self.is_trailing_sl_hit = False
 
     def set_leg_pairs_by_straddle_times(self, straddle_times: List[str]):
         self.filtered_leg_pairs_by_time = []
@@ -259,7 +266,7 @@ class DayTrade:
             else:
                 print("x")
 
-    def walk(self, minute_index, sl: float, target_profit: int, trailing_sl: int, stop_at_target: bool,
+    def walk(self, minute_index, sl: float, target_profit: int, trailing_sl: int, stop_at_target: int,
              is_c2c_enabled: bool):
         day_profit_so_far = 0
         for leg_pair in self.filtered_leg_pairs_by_time:
@@ -267,15 +274,20 @@ class DayTrade:
             day_profit_so_far = day_profit_so_far + leg_pair.get_profit(minute_index)
         self.profit_tracker.append(day_profit_so_far)
 
+        if self.is_trailing_sl_hit or self.is_stop_at_target_profit_reached:
+            return
         if target_profit != -1:
-            if day_profit_so_far > target_profit:
-                self.is_target_profit_reached = True
-                if stop_at_target:
-                    self.set_sl_for_all(True)
+            # this is the case target profit has reached but the profit went below trailing profit
             if self.is_target_profit_reached:
-                if day_profit_so_far < trailing_sl:
+                if day_profit_so_far <= trailing_sl:
                     # print("reached..*************************")
                     self.set_sl_for_all(True)
+                    self.is_trailing_sl_hit = False
+            if day_profit_so_far > target_profit:
+                self.is_target_profit_reached = True
+        if stop_at_target != -1 and day_profit_so_far > stop_at_target:
+            self.set_sl_for_all(True)
+            self.is_stop_at_target_profit_reached = True
 
     def set_sl_for_all(self, sl_status):
         for leg_pair in self.filtered_leg_pairs_by_time:
@@ -301,7 +313,7 @@ def get_start_minute_index(start_time_str: str):
 
 
 def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date: str, regular_sl_perc: float,
-                            target_profit: int, trailing_sl: int, stop_at_target: bool, allowed_week_day: int,
+                            target_profit: int, trailing_sl: int, stop_at_target: int, allowed_week_day: int,
                             is_c2c_enabled: bool):
     # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
     analyze_start_time = millis()
@@ -415,16 +427,16 @@ if False:
 
 # only for the current year.
 if True:
-    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
-                            stop_at_target=False, allowed_week_day=0, is_c2c_enabled=True)
-    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
-                            stop_at_target=False, allowed_week_day=1, is_c2c_enabled=True)
-    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 90, 45,
-                            stop_at_target=False, allowed_week_day=2, is_c2c_enabled=True)
-    analyze_interval_trades(["0920", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 90, 45,
-                            stop_at_target=False, allowed_week_day=3, is_c2c_enabled=True)
-    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 90, 45,
-                            stop_at_target=False, allowed_week_day=4, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 100, 50,
+                            stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 100, 50,
+                            stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 100, 50,
+                            stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=True)
+    analyze_interval_trades(["0920", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .6, 100, 50,
+                            stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=True)
+    analyze_interval_trades(["0940", "1040", "1140", "1240"], '2021-01-01', '2022-02-11', .2, 100, 50,
+                            stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True)
 
 # with 7 trades in a day
 if False:
