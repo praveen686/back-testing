@@ -11,6 +11,8 @@ from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
 from zerodha_kiteconnect_algo_trading import MyTicker
 
+from os.path import exists
+
 app = Flask(__name__, static_folder="hello")
 app.config['SECRET_KEY'] = "secretkey123"
 kite = KiteConnect(api_key="gui6ggv8t8t5almq")
@@ -50,7 +52,11 @@ def home():
 @app.route("/zerodha", methods=["GET", "OPTIONS"])
 # this sets the route to this page
 def zerodha():
-    trading_data_by_date: Dict[str, trade_setup.DayTrade] = get_pickle_data("trading_data_by_date")
+    file_exists = exists("trading_data_by_date")
+    if file_exists:
+        trading_data_by_date: Dict[str, trade_setup.DayTrade] = get_pickle_data("trading_data_by_date")
+    else:
+        trading_data_by_date: Dict[str, trade_setup.DayTrade] = {}
     trade_setup.AllTrade.trading_data_by_date = trading_data_by_date
     kite_url = 'https://kite.trade/connect/login?api_key=gui6ggv8t8t5almq&v=3'
     print(request.args)
@@ -74,7 +80,7 @@ def zerodha():
     day_trade = DayTrade(today_date_str, access_token)
     trading_data_by_date[today_date_str] = day_trade
     # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
-    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
+    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade,)
     trade_placer.zerodha_algo_trader = zerodha_algo_trader
     position_analyzer.zerodha_algo_trader = zerodha_algo_trader
 

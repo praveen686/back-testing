@@ -19,8 +19,7 @@ from zerodha_kiteconnect_algo_trading import MyTicker
 
 
 class ZerodhaBrokingAlgo:
-    def __init__(self, is_testing: bool, sleep_time: int, day_trade: DayTrade, target_profit: int, trailing_sl: int,
-                 set_c2c: bool):
+    def __init__(self, is_testing: bool, sleep_time: int, day_trade: DayTrade):
         print("")
         self.is_testing = is_testing
         self.straddle_list: List[Straddle] = []
@@ -28,18 +27,18 @@ class ZerodhaBrokingAlgo:
         self.zerodha_positions: List[Dict] = []
         self.sleep_time = sleep_time
         self.day_trade: DayTrade = day_trade
-        self.target_profit = target_profit
+        # self.target_profit = target_profit
         self.target_profit_reached = True
-        self.trailing_sl = trailing_sl
-        self.set_c2c = set_c2c
+        # self.trailing_sl = trailing_sl
+        # self.set_c2c = set_c2c
 
-    def prepare_option_legs(self, sl: float, quantity: int) -> Straddle:
+    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str) -> Straddle:
         ce_option_type = "CE"
         pe_option_type = "PE"
         option_sell = "SELL"
         option_buy = "BUY"
         # nse_json_data = get_pickle_data('nse_json_data')
-        spot_price = self.zerodha_api.get_latest_b_nifty()
+        spot_price = self.zerodha_api.get_latest_b_nifty(self.day_trade.access_token)
         nse_json_data = self.zerodha_api.fetch_nse_data()
         atm_strike_price = round_nearest(spot_price, 100)
 
@@ -64,7 +63,7 @@ class ZerodhaBrokingAlgo:
         sell_ce_position = self.get_position(nearest_expiry_date, atm_strike_price, spot_price, ce_option_type,
                                              option_sell, sl, quantity)
 
-        straddle = Straddle(buy_pe_position, buy_ce_position, sell_pe_position, sell_ce_position)
+        straddle = Straddle(trade_time, buy_pe_position, buy_ce_position, sell_pe_position, sell_ce_position)
         return straddle
 
     def get_position(self, nearest_expiry_date: str, strike_price: float, spot_price: float, option_type: str,
@@ -202,7 +201,7 @@ class ZerodhaBrokingAlgo:
             # you need latest to position to see its done and the latest orders to see sl has been hit
             if not is_order_n_position_fetched:
                 time.sleep(self.sleep_time)
-                zerodha_orders = self.zerodha_api.get_zerodha_open_orders(access_token)
+                zerodha_orders = self.zerodha_api.get_zerodha_open_orders(self.day_trade.access_token)
                 # this is done so that to attach the latest order to and see if any of the sl is hit of its completed.
                 self.attach_zerodha_order(straddle, zerodha_orders, "BOTH")
                 is_order_n_position_fetched = True
@@ -354,14 +353,14 @@ class TradePlacer(threading.Thread):
             # handling tracking of ticker including newly added ones.
             tokens_to_subscribe = [int(leg.place_order.zerodha_order["instrument_token"]) for leg in
                                    all_legs]
-            ticker_tracker = day_trade.ticker_tracker
+            ticker_tracker = MyTicker.ticker_instance
             if ticker_tracker is not None:
                 ticker_tracker.stop_gracefully()
                 tokens_to_subscribe.extend(ticker_tracker.tokens_to_subscribe)
             # restarting ticker to subscribe with the new instrument tokens
             new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe)
             new_ticker_tracker.start()
-            day_trade.ticker_tracker = new_ticker_tracker
+            # day_trade.ticker_tracker = new_ticker_tracker
 
             local_end_time = time.time()
             print(f'done checking; time taken:{round(local_end_time - local_start_time)}')
