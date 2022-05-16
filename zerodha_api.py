@@ -113,16 +113,37 @@ class ZerodhaApi:
                 raise Exception(
                     f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
 
-    def add_basket_items(self, basket_name: str, access_token: str):
+    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int):
         data = {
             "exchange": "NFO",
-            "tradingsymbol": "BANKNIFTY2241341700CE",
+            "tradingsymbol": symbol,
             "weight": 0,
-            "params": {"transaction_type": "BUY", "product": "MIS", "order_type": "MARKET", "validity": "DAY",
-                       "validity_ttl": "1", "variety": "regular", "quantity": "25", "price": "0",
-                       "trigger_price": "0", "disclosed_quantity": "0"}
+            "params": json.dumps(
+                {"transaction_type": "BUY", "product": "MIS", "order_type": "MARKET", "validity": "DAY",
+                 "validity_ttl": 1, "variety": "regular", "quantity": quantity, "price": 0,
+                 "trigger_price": 0, "disclosed_quantity": 0})
 
         }
+        # y = json.dumps(a)
+        if self.is_testing:
+            response = {"order_id": '220413000593839'}
+            place_order = Order(-1)
+        else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            response = requests.post(f'https://kite.zerodha.com/api/baskets/{basket_id}/items', headers=zerodha_header,
+                                     data=data)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception occured while creating basket {basket_id}')
+            resp_json_data = json.loads(response.text)
+            basket_id = resp_json_data['data']
+            return basket_id
+
+    def create_new_basket(self, basket_name, access_token: str) -> int:
+        data = {
+            "name": "test",
+        }
+        data['name'] = basket_name
         if self.is_testing:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
@@ -134,27 +155,9 @@ class ZerodhaApi:
                     f'exception occured while creating basket {basket_name}')
             resp_json_data = json.loads(response.text)
             basket_id = resp_json_data['data']
-            return basket_id
+            return int(basket_id)  # 10205972
 
-    def create_new_basket(self, basket_name, access_token: str):
-        data = {
-            "name": "test"
-        }
-        data['name'] = basket_name
-        if self.is_testing:
-            response = {"order_id": '220413000593839'}
-            place_order = Order(-1)
-        else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
-            response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
-            if response.status_code != 200:
-                raise Exception(
-                    f'exception occured while creating basket {basket_name}')
-            resp_json_data = json.loads(response.text)
-            basket_id = resp_json_data['data']
-            return basket_id
-
-    def place_regular_order(self, position: Position, access_token: str, quantity: int):
+    def place_regular_order(self, position: Position, access_token: str, quantity: int, basket_id: int):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -174,6 +177,8 @@ class ZerodhaApi:
         data['quantity'] = quantity
         data['tradingsymbol'] = position.symbol
         data['transaction_type'] = position.sell_or_buy
+        if basket_id is not None:
+            data['tag'] = f'bsk:{basket_id}'
         if self.is_testing:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
@@ -235,7 +240,7 @@ class ZerodhaApi:
         today_date_str = current_time.strftime("%Y-%m-%d")
         yesterday = current_time - datetime.timedelta(1)
         yesterday_date_str = yesterday.strftime("%Y-%m-%d")
-        kite_url = f'https://api.kite.trade/quote?i=NSE:NIFTY+BANK'
+        kite_url = f'https://api.kite.trade/quote?i=NSE:NIFTY%20BANK'
         print(kite_url)
         if self.is_testing:
             spot_price = 34763
@@ -309,5 +314,3 @@ class ZerodhaApi:
     @staticmethod
     def set_auth_header(header: Dict, access_token: str):
         header['authorization'] = f'token {constants.API_KEY}:{access_token}'
-
-

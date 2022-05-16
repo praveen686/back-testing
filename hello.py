@@ -6,6 +6,17 @@ import pandas as pd
 import numpy as np
 
 from option_util import get_minutes
+from trade_setup import DayTrade
+from zerodha_algo_trader import ZerodhaBrokingAlgo
+from zerodha_api import ZerodhaApi
+
+# algo = ZerodhaBrokingAlgo(False, -1, DayTrade("", "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz"))
+# straddle = algo.prepare_option_legs(1.2, 25, "09:20")
+
+zero = ZerodhaApi(False)
+# zero.create_new_basket("testtestest2", "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz")
+zero.add_basket_items(10205972, 'BANKNIFTY2251940200CE', "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz", 25)
+
 
 
 class Anoop:

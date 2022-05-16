@@ -128,18 +128,27 @@ class ZerodhaBrokingAlgo:
                 if len(matched_zerodha_orders) > 0:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
-    def place_straddle_order(self, sl: float, quantity: int, access_token: str) -> Straddle:
+    def place_straddle_order(self, sl: float, quantity: int, trade_time: str, access_token: str) -> Straddle:
         # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
-        straddle = self.prepare_option_legs(sl, quantity)
+        straddle = self.prepare_option_legs(sl, quantity, trade_time)
+        # creating basket
+        basket_name = f'{self.day_trade.date_str}_{trade_time}'
+        basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
         self.straddle_list.append(straddle)
-        self.zerodha_api.place_regular_order(straddle.buy_pe_position, access_token)
+
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity)
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity)
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity)
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity)
+
+        self.zerodha_api.place_regular_order(straddle.buy_pe_position, access_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.buy_ce_position, access_token)
+        self.zerodha_api.place_regular_order(straddle.buy_ce_position, access_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_pe_position, access_token)
+        self.zerodha_api.place_regular_order(straddle.sell_pe_position, access_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_ce_position, access_token)
+        self.zerodha_api.place_regular_order(straddle.sell_ce_position, access_token, quantity, basket_id)
 
         # ideally this should be handled in the place order method but for the testing its manually assigned.
 
