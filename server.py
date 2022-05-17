@@ -62,11 +62,8 @@ def zerodha():
     print(request.args)
     data = kite.generate_session(request.args['request_token'], api_secret=constants.API_SECRET)
     print(data["access_token"])
-    access_token = data['access-token']
+    access_token = data['access_token']
     today_date_str: str = get_today_date_in_str()
-    day_trade: DayTrade = trading_data_by_date[today_date_str]
-    if day_trade is not None:
-        raise Exception(f'data should not be present for the date:{today_date_str}')
 
     # this checking is done so that there will be only one instance of Trade Placer. Like Singleton class in Java
     trade_placer = TradePlacer.trade_placer_instance
@@ -77,10 +74,14 @@ def zerodha():
     if position_analyzer is None:
         position_analyzer = PositionAnalyzer()
         position_analyzer.start()
+
+    day_trade: DayTrade = trading_data_by_date[today_date_str]
+    if day_trade is not None:
+        print(f'data already exist for the date:{today_date_str}, going to overwrite')
     day_trade = DayTrade(today_date_str, access_token)
     trading_data_by_date[today_date_str] = day_trade
     # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
-    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade,)
+    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
     trade_placer.zerodha_algo_trader = zerodha_algo_trader
     position_analyzer.zerodha_algo_trader = zerodha_algo_trader
 

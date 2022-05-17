@@ -308,6 +308,9 @@ class PositionAnalyzer(threading.Thread):
         start_time = time.time()
         check_interval = 5
         while True:
+            if self.zerodha_algo_trader is None:
+                print("hasnt setup zerodha")
+                continue
             local_start_time = time.time()
             print("about to check")
             today_date_str = get_today_date_in_str()
@@ -328,6 +331,9 @@ class TradePlacer(threading.Thread):
         start_time = time.time()
         check_interval = 5
         while True:
+            if self.zerodha_algo_trader is None:
+                print("hasnt setup zerodha")
+                continue
             local_start_time = time.time()
             print("about to check")
             today_date_str = get_today_date_in_str()
@@ -350,24 +356,30 @@ class TradePlacer(threading.Thread):
                                          interval_sl.split("|")[0] not in day_trade.straddle_by_time]
             not_executed_interval_sl = not_executed_interval_sls[0]
             interval_sl_split = not_executed_interval_sl.split("|")
+            # |1.2|100|60
             # placing the straddle order
             straddle = self.zerodha_algo_trader.place_straddle_order(float(interval_sl_split[1]),
                                                                      constants.BANKNIFTY_LOT_SIZE,
+                                                                     interval_sl_split[0],
                                                                      day_trade.access_token)
             all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                         straddle.buy_ce_position]
-
-            day_trade.straddle_by_time[interval_sl_split[0]] = straddle
 
             # handling tracking of ticker including newly added ones.
             tokens_to_subscribe = [int(leg.place_order.zerodha_order["instrument_token"]) for leg in
                                    all_legs]
             ticker_tracker = MyTicker.ticker_instance
+            # final_tokens_to_subscribe = []
             if ticker_tracker is not None:
                 ticker_tracker.stop_gracefully()
-                tokens_to_subscribe.extend(ticker_tracker.tokens_to_subscribe)
+                # if the entry is the first entry, then start fresh, by removing all the previous entries
+                if len(day_trade.straddle_by_time) == 0:
+                    ticker_tracker.tokens_to_subscribe = tokens_to_subscribe
+                else:
+                    ticker_tracker.tokens_to_subscribe.extend(tokens_to_subscribe)
+            day_trade.straddle_by_time[interval_sl_split[0]] = straddle
             # restarting ticker to subscribe with the new instrument tokens
-            new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe)
+            new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe, day_trade)
             new_ticker_tracker.start()
             # day_trade.ticker_tracker = new_ticker_tracker
 

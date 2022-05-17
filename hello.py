@@ -10,12 +10,12 @@ from trade_setup import DayTrade
 from zerodha_algo_trader import ZerodhaBrokingAlgo
 from zerodha_api import ZerodhaApi
 
-# algo = ZerodhaBrokingAlgo(False, -1, DayTrade("", "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz"))
+# algo = ZerodhaBrokingAlgo(False, -1, DayTrade("", "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt"))
 # straddle = algo.prepare_option_legs(1.2, 25, "09:20")
 
 zero = ZerodhaApi(False)
-# zero.create_new_basket("testtestest2", "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz")
-zero.add_basket_items(10205972, 'BANKNIFTY2251940200CE', "JH6pW7cCyQO8iIvexa6Bpoq61t6ggvcz", 25)
+# zero.create_new_basket("testtestest2", "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt")
+zero.add_basket_items(10205972, 'BANKNIFTY2251940200CE', "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt", 25)
 
 
 
