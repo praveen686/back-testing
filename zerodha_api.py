@@ -113,13 +113,13 @@ class ZerodhaApi:
                 raise Exception(
                     f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
 
-    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int):
+    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int, transaction_type: str):
         data = {
             "exchange": "NFO",
             "tradingsymbol": symbol,
             "weight": 0,
             "params": json.dumps(
-                {"transaction_type": "BUY", "product": "MIS", "order_type": "MARKET", "validity": "DAY",
+                {"transaction_type": transaction_type, "product": "MIS", "order_type": "MARKET", "validity": "DAY",
                  "validity_ttl": 1, "variety": "regular", "quantity": quantity, "price": 0,
                  "trigger_price": 0, "disclosed_quantity": 0})
 
@@ -157,7 +157,7 @@ class ZerodhaApi:
             basket_id = resp_json_data['data']
             return int(basket_id)  # 10205972
 
-    def place_regular_order(self, position: Position, access_token: str, quantity: int, basket_id: int):
+    def place_regular_order(self, position: Position, enctoken: str, quantity: int, basket_id: int):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -183,7 +183,7 @@ class ZerodhaApi:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, enctoken, False)
             response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(
@@ -194,7 +194,7 @@ class ZerodhaApi:
         position.place_order = place_order
         return response
 
-    def place_sl_order(self, position: Position, sl: float, quantity: int, access_token: str):
+    def place_sl_order(self, position: Position, sl: float, quantity: int, enc_token: str):
         sl_trigger_price = round(position.get_premium() * sl)
         sl_other_price = round(sl_trigger_price * 2)
         data = {
@@ -224,7 +224,7 @@ class ZerodhaApi:
             response = {}
             sl_order = Order(-1)
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, enc_token, False)
             response = requests.post("https://kite.zerodha.com/oms/orders/regular", headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(
@@ -312,5 +312,8 @@ class ZerodhaApi:
         print(response)
 
     @staticmethod
-    def set_auth_header(header: Dict, access_token: str):
-        header['authorization'] = f'token {constants.API_KEY}:{access_token}'
+    def set_auth_header(header: Dict, token: str, is_access_token=True):
+        if is_access_token:
+            header['authorization'] = f'token {constants.API_KEY}:{token}'
+        else:
+            header['authorization'] = f'enctoken {token}'

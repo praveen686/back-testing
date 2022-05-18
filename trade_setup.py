@@ -14,6 +14,7 @@ class DayTrade:
     def __init__(self, date_str: str, access_token: str):
         self.date_str: str = date_str
         self.access_token: str = access_token
+        self.enctoken: str = ""
         self.straddle_by_time: Dict[str, Straddle] = {}
         self.ltp: Dict[int, float] = {}
 

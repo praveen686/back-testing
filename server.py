@@ -65,6 +65,18 @@ def zerodha():
     access_token = data['access_token']
     today_date_str: str = get_today_date_in_str()
 
+    if today_date_str in trading_data_by_date:
+        print(f'data already exist for the date:{today_date_str}, going to overwrite')
+    day_trade = DayTrade(today_date_str, access_token)
+    trading_data_by_date[today_date_str] = day_trade
+    # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
+
+    # write_pickle_data("access_token", data["access_token"])
+    return {"status": True}
+
+
+@app.route("/startAnalyzer", methods=["GET", "OPTIONS"])
+def startAnalyzer():
     # this checking is done so that there will be only one instance of Trade Placer. Like Singleton class in Java
     trade_placer = TradePlacer.trade_placer_instance
     if trade_placer is None:
@@ -74,24 +86,41 @@ def zerodha():
     if position_analyzer is None:
         position_analyzer = PositionAnalyzer()
         position_analyzer.start()
-
-    day_trade: DayTrade = trading_data_by_date[today_date_str]
-    if day_trade is not None:
-        print(f'data already exist for the date:{today_date_str}, going to overwrite')
-    day_trade = DayTrade(today_date_str, access_token)
-    trading_data_by_date[today_date_str] = day_trade
-    # day_trade is set so that, algo trader can calculate profit using the ltp set in the day trader by the ticker
     zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
     trade_placer.zerodha_algo_trader = zerodha_algo_trader
     position_analyzer.zerodha_algo_trader = zerodha_algo_trader
 
-    # write_pickle_data("access_token", data["access_token"])
-    return {"status": True}
+
+@app.route("/testtest", methods=["GET", "OPTIONS"])
+def test_test():
+    if request.method == "OPTIONS":  # CORS preflight
+        return _build_cors_preflight_response()
+    elif request.method == "GET":  # The actual request following the preflight
+        return _corsify_actual_response(jsonify([{"id": 1}]))
+    else:
+        raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
+
+
+@app.route("/settoken", methods=["GET", "OPTIONS"])
+def settoken():
+    trading_data_by_date = trade_setup.AllTrade.trading_data_by_date
+    today_date_str: str = get_today_date_in_str()
+    day_trade: DayTrade = trading_data_by_date[today_date_str]
+
+    enctoken = request.args.get('enctoken')
+    if request.method == "OPTIONS":  # CORS preflight
+        return _build_cors_preflight_response()
+    elif request.method == "GET":  # The actual request following the preflight
+        day_trade.enctoken = enctoken
+        return _corsify_actual_response(jsonify([{"id": 1}]))
+    else:
+        raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
 
 
 @app.route("/ticker", methods=["GET", "OPTIONS"])
 def ticker():
-    access_token = TradeData.Data.access_token
+    today_date_str: str = get_today_date_in_str()
+    access_token = TradeS.Data.access_token
     if access_token is None:
         access_token = get_pickle_data("access_token")
         TradeData.Data.access_token = access_token
@@ -133,5 +162,5 @@ def _corsify_actual_response(response):
 # back_tester = get_pickle_data("back_tester")
 if __name__ == "__main__":
     app.run()
-    trade_placer = TradePlacer()
-    trade_placer.start()
+    # trade_placer = TradePlacer()
+    # trade_placer.start()

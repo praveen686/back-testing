@@ -114,7 +114,7 @@ class ZerodhaBrokingAlgo:
         return f'{prefix}{strike_price}{option_type}'
 
     def attach_zerodha_order(self, straddle, zerodha_orders: List[Dict], order_type: str):
-        manual_positions = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_ce_position,
+        manual_positions = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                             straddle.buy_ce_position]
         for manual_position in manual_positions:
             if order_type == "REGULAR" or order_type == "BOTH":
@@ -128,7 +128,8 @@ class ZerodhaBrokingAlgo:
                 if len(matched_zerodha_orders) > 0:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
-    def place_straddle_order(self, sl: float, quantity: int, trade_time: str, access_token: str) -> Straddle:
+    def place_straddle_order(self, sl: float, quantity: int, trade_time: str, enc_token: str,
+                             access_token: str) -> Straddle:
         # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
         straddle = self.prepare_option_legs(sl, quantity, trade_time)
@@ -137,18 +138,22 @@ class ZerodhaBrokingAlgo:
         basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
         self.straddle_list.append(straddle)
 
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity)
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity)
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity)
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity)
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity,
+                                          straddle.buy_pe_position.sell_or_buy)
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity,
+                                          straddle.buy_ce_position.sell_or_buy)
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
+                                          straddle.sell_pe_position.sell_or_buy)
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity,
+                                          straddle.sell_ce_position.sell_or_buy)
 
-        self.zerodha_api.place_regular_order(straddle.buy_pe_position, access_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.buy_pe_position, enc_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.buy_ce_position, access_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.buy_ce_position, enc_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_pe_position, access_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.sell_pe_position, enc_token, quantity, basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_ce_position, access_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.sell_ce_position, enc_token, quantity, basket_id)
 
         # ideally this should be handled in the place order method but for the testing its manually assigned.
 
@@ -163,9 +168,9 @@ class ZerodhaBrokingAlgo:
         # only once above orders are set to the position, you can place sl order as SL order relies on current premium
         # to come with SL trigger amount
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_sl_order(straddle.sell_pe_position, sl, quantity, access_token)
+        self.zerodha_api.place_sl_order(straddle.sell_pe_position, sl, quantity, enc_token)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_sl_order(straddle.sell_ce_position, sl, quantity, access_token)
+        self.zerodha_api.place_sl_order(straddle.sell_ce_position, sl, quantity, enc_token)
         if self.is_testing:
             straddle.sell_pe_position.sl_order.order_id = '220413001614601'
             straddle.sell_ce_position.sl_order.order_id = '220413001261330'
@@ -331,56 +336,53 @@ class TradePlacer(threading.Thread):
         start_time = time.time()
         check_interval = 5
         while True:
-            if self.zerodha_algo_trader is None:
-                print("hasnt setup zerodha")
-                continue
-            local_start_time = time.time()
-            print("about to check")
             today_date_str = get_today_date_in_str()
             day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
-            if day_trade is None:
-                continue
-            if self.stop_running is True:
-                break
-            today_date = datetime.datetime.today()
-            current_min_str = get_current_min_in_str()
-            week_day = today_date.weekday()
-            configured_interval_sl = trade_setup.AllTrade.trade_intervals_by_week_day[week_day]
-            # configured_intervals = [interval.split("|")[0] for interval in configured_interval_sl]
-            passed_interval_sls = [interval_sl for interval_sl in configured_interval_sl if
-                                   interval_sl.split("|")[0] < current_min_str]
-            if len(passed_interval_sls) == 0:
-                continue
-            # filtering out the ones that are already executed.
-            not_executed_interval_sls = [interval_sl for interval_sl in passed_interval_sls if
-                                         interval_sl.split("|")[0] not in day_trade.straddle_by_time]
-            not_executed_interval_sl = not_executed_interval_sls[0]
-            interval_sl_split = not_executed_interval_sl.split("|")
-            # |1.2|100|60
-            # placing the straddle order
-            straddle = self.zerodha_algo_trader.place_straddle_order(float(interval_sl_split[1]),
-                                                                     constants.BANKNIFTY_LOT_SIZE,
-                                                                     interval_sl_split[0],
-                                                                     day_trade.access_token)
-            all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
-                        straddle.buy_ce_position]
+            if self.zerodha_algo_trader is not None and day_trade is not None:
+                local_start_time = time.time()
+                print("about to check")
+                if self.stop_running is True:
+                    break
+                today_date = datetime.datetime.today()
+                current_min_str = get_current_min_in_str()
+                week_day = today_date.weekday()
+                configured_interval_sl = trade_setup.AllTrade.trade_intervals_by_week_day[week_day]
+                # configured_intervals = [interval.split("|")[0] for interval in configured_interval_sl]
+                passed_interval_sls = [interval_sl for interval_sl in configured_interval_sl if
+                                       interval_sl.split("|")[0] < current_min_str]
+                if len(passed_interval_sls) > 0:
+                    # filtering out the ones that are already executed.
+                    not_executed_interval_sls = [interval_sl for interval_sl in passed_interval_sls if
+                                                 interval_sl.split("|")[0] not in day_trade.straddle_by_time]
+                    if len(not_executed_interval_sls) > 0:
+                        not_executed_interval_sl = not_executed_interval_sls[0]
+                        interval_sl_split = not_executed_interval_sl.split("|")
+                        # |1.2|100|60
+                        # placing the straddle order
+                        straddle = self.zerodha_algo_trader.place_straddle_order(float(interval_sl_split[1]),
+                                                                                 constants.BANKNIFTY_LOT_SIZE,
+                                                                                 interval_sl_split[0],
+                                                                                 day_trade.access_token)
+                        all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
+                                    straddle.buy_ce_position]
 
-            # handling tracking of ticker including newly added ones.
-            tokens_to_subscribe = [int(leg.place_order.zerodha_order["instrument_token"]) for leg in
-                                   all_legs]
-            ticker_tracker = MyTicker.ticker_instance
-            # final_tokens_to_subscribe = []
-            if ticker_tracker is not None:
-                ticker_tracker.stop_gracefully()
-                # if the entry is the first entry, then start fresh, by removing all the previous entries
-                if len(day_trade.straddle_by_time) == 0:
-                    ticker_tracker.tokens_to_subscribe = tokens_to_subscribe
-                else:
-                    ticker_tracker.tokens_to_subscribe.extend(tokens_to_subscribe)
-            day_trade.straddle_by_time[interval_sl_split[0]] = straddle
-            # restarting ticker to subscribe with the new instrument tokens
-            new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe, day_trade)
-            new_ticker_tracker.start()
+                        # handling tracking of ticker including newly added ones.
+                        tokens_to_subscribe = [int(leg.place_order.zerodha_order["instrument_token"]) for leg in
+                                               all_legs]
+                        ticker_tracker = MyTicker.ticker_instance
+                        # final_tokens_to_subscribe = []
+                        if ticker_tracker is not None:
+                            ticker_tracker.stop_gracefully()
+
+                        # if the entry is the first entry, then start fresh, by removing all the previous entries
+                        if len(day_trade.straddle_by_time) == 0:
+                            ticker_tracker.tokens_to_subscribe = tokens_to_subscribe
+                        else:
+                            ticker_tracker.tokens_to_subscribe.extend(tokens_to_subscribe)
+                        day_trade.straddle_by_time[interval_sl_split[0]] = straddle
+                        # restarting ticker to subscribe with the new instrument tokens
+                        new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe, day_trade)
+                        new_ticker_tracker.start()
             # day_trade.ticker_tracker = new_ticker_tracker
 
             local_end_time = time.time()
