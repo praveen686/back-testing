@@ -32,7 +32,7 @@ class ZerodhaBrokingAlgo:
         # self.trailing_sl = trailing_sl
         # self.set_c2c = set_c2c
 
-    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str) -> Straddle:
+    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str, buy_leg_max_price: int) -> Straddle:
         ce_option_type = "CE"
         pe_option_type = "PE"
         option_sell = "SELL"
@@ -48,8 +48,10 @@ class ZerodhaBrokingAlgo:
         # pe_premium = get_strike_price_premium(strike_price_list, nearest_expiry_date, pe_option_type, strike_price)
         # ce_premium = get_strike_price_premium(strike_price_list, nearest_expiry_date, ce_option_type, strike_price)
         # getting the buy strike price for the given expiry to reduce the margin
-        buy_pe_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, pe_option_type, 4, spot_price)
-        buy_ce_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, ce_option_type, 4, spot_price)
+        buy_pe_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, pe_option_type,
+                                               buy_leg_max_price, spot_price)
+        buy_ce_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, ce_option_type,
+                                               buy_leg_max_price, spot_price)
 
         buy_pe_position = self.get_position(nearest_expiry_date, buy_pe_strike_entry['strikePrice'], spot_price,
                                             pe_option_type,
@@ -73,7 +75,8 @@ class ZerodhaBrokingAlgo:
         position = Position(symbol, option_type, sell_or_buy, quantity, spot_price, strike_price, sl)
         return position
 
-    def get_buy_leg(self, strike_price_list, nearest_expiry_date, option_type: str, lowest_price, spot_price: float):
+    def get_buy_leg(self, strike_price_list, nearest_expiry_date, option_type: str, buy_leg_max_price,
+                    spot_price: float):
         if option_type == "PE":
             strike_price_list = [strike_price_data for strike_price_data in strike_price_list if
                                  strike_price_data['strikePrice'] < spot_price and strike_price_data[
@@ -82,18 +85,18 @@ class ZerodhaBrokingAlgo:
             strike_price_list = [strike_price_data for strike_price_data in strike_price_list if
                                  strike_price_data['strikePrice'] > spot_price and strike_price_data[
                                      'expiryDate'] == nearest_expiry_date]
-        buy_pe_strike_prices = [
+        buy_strike_prices = [
             {"lp": strike_price_data[option_type]['lastPrice'], "strikePrice": strike_price_data['strikePrice'],
              option_type: strike_price_data[option_type]}
             for strike_price_data in strike_price_list
             if (option_type in strike_price_data) and
-               strike_price_data[option_type]['lastPrice'] < lowest_price and strike_price_data[option_type][
+               strike_price_data[option_type]['lastPrice'] < buy_leg_max_price and strike_price_data[option_type][
                    'lastPrice'] > 1]
-        buy_pe_strike_prices.sort(key=lambda x: x['lp'])
-        if len(buy_pe_strike_prices) == 0:
-            raise Exception(f'no strike price present below {lowest_price}')
-        buy_pe_strike_price = buy_pe_strike_prices[0]
-        print(buy_pe_strike_prices)
+        buy_strike_prices.sort(key=lambda x: x['lp'])
+        if len(buy_strike_prices) == 0:
+            raise Exception(f'no strike price present below {buy_leg_max_price}')
+        buy_pe_strike_price = buy_strike_prices[-1]
+        print(buy_strike_prices)
         return buy_pe_strike_price
 
     def get_strike_price_premium(self, strike_price_list, nearest_expiry_date, option_type: str, strike_price):
@@ -128,24 +131,31 @@ class ZerodhaBrokingAlgo:
                 if len(matched_zerodha_orders) > 0:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
+    def add_legs_to_basket(self, straddle: Straddle, trade_time: str, access_token: str, quantity: int):
+        basket_name = f'{self.day_trade.date_str}_{trade_time}'
+        basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity,
+                                          straddle.buy_pe_position.sell_or_buy, 0, 0, "MARKET")
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity,
+                                          straddle.buy_ce_position.sell_or_buy, 0, 0, "MARKET")
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
+                                          straddle.sell_pe_position.sell_or_buy, 0, 0, "MARKET")
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity,
+                                          straddle.sell_ce_position.sell_or_buy, 0, 0, "MARKET")
+        # self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
+        #                                   "BUY", 400, 300, "SL")
+        # self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity, "BUY",
+        #                                   400,
+        #                                   300, "SL")
+
     def place_straddle_order(self, sl: float, quantity: int, trade_time: str, enc_token: str,
                              access_token: str) -> Straddle:
         # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
-        straddle = self.prepare_option_legs(sl, quantity, trade_time)
+        straddle = self.prepare_option_legs(sl, quantity, trade_time, 6)
         # creating basket
-        basket_name = f'{self.day_trade.date_str}_{trade_time}'
-        basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
+        self.add_legs_to_basket(straddle, trade_time, access_token, quantity)
         self.straddle_list.append(straddle)
-
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity,
-                                          straddle.buy_pe_position.sell_or_buy)
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity,
-                                          straddle.buy_ce_position.sell_or_buy)
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
-                                          straddle.sell_pe_position.sell_or_buy)
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity,
-                                          straddle.sell_ce_position.sell_or_buy)
 
         self.zerodha_api.place_regular_order(straddle.buy_pe_position, enc_token, quantity, basket_id)
         time.sleep(self.sleep_time)

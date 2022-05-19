@@ -31,28 +31,22 @@ class StartAnalyzer extends React.Component {
   }
 
   updateEnctoken() {
-    fetch('https://reqres.in/api/posts', requestOptions)
-      .then(response => response.json())
-      .then(data => this.setState({ postId: data.id }));
-  }
-
-  postData() {
     const requestOptions = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'React POST Request Example' })
     };
-    fetch(`http://localhost:5000/settoken?ectoken=${this.state.ectoken}`, requestOptions)
+
+    fetch(`http://localhost:5000/settoken?enctoken=${this.state.ectoken}`)
       .then(response => response.json())
       .then(data => this.setState({ postId: data.id }));
   }
-
 
   render() {
     return (
       <>
         <input value={this.state.ectoken} onChange={evt => this.upateEctoken(evt)} />
-        <input type="button" onClick={() => this.postData()}></input>
+        <input type="button" onClick={() => this.updateEnctoken()} value="werwe"></input>
       </>
 
     );

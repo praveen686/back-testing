@@ -327,6 +327,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     # day_trades = [day_trade for day_trade in day_trades if '2019-10-27' <= day_trade.trade_date_str <= "2019-10-27"]
     # filter(lambda x: '2019-02-18' <= x.trade_date_str <= "2022-02-14", day_trades))
     total_profit = 0
+    cummulative_profits = []
     trading_minute_list = get_minute_list('%H:%M:%S', "09:15:00", "14:30:00")
     profit_tracker: List[{}] = []
     # walk through each DayTrade>LegPair>LegTrade
@@ -345,6 +346,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
         day_profit = round(day_trade.get_profit(), 2)
         # print(f'{day_trade.trade_date_str},{day_profit}')
         total_profit = total_profit + day_profit
+        cummulative_profits.append(total_profit)
         profit_tracker.append(
             {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached(),
              "week_day": trade_week_day})
@@ -353,7 +355,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     write_pickle_data('day_profit_df', day_profit_df)
     # print(total_profit, (millis() - analyze_start_time))
     result = {}
-
+    result['cumm_prft_list'] = cummulative_profits
     day_profit_df.index = pd.to_datetime(day_profit_df.date)
     per_month_df = day_profit_df.resample('M').agg(
         {'profit': 'sum', 'date': 'min'})
@@ -437,29 +439,40 @@ if False:
 
 # only for the current year.
 if True:
-    # result_mon = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
-    #                                      stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=False)
-    # result_tue = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 50,
-    #                                      stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False)
-    # result_wed = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.6, 130, 65,
-    #                                      stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False)
-    # result_thu = analyze_interval_trades(["0920", "1040", "1140"], '2021-01-01', '2022-02-11', 1.6, 130, 65,
-    #                                      stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False)
+    result_mon = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
+                                         stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=False)
+    result_tue = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 50,
+                                         stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False)
+    result_wed = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.6, 130, 65,
+                                         stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False)
+    result_thu = analyze_interval_trades(["0920", "1040", "1140"], '2021-01-01', '2022-02-11', 1.6, 130, 65,
+                                         stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False)
     result_fri = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
-                                         stop_at_target=180, allowed_week_day=4, is_c2c_enabled=False)
-    result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
-                                          stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False)
+                                         stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False)
+    # result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
+    #                                       stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False)
     results = [result_mon, result_tue, result_wed, result_thu, result_fri]
     total_profit = sum([result["total_profit"] for result in results if result is not None])
     # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
     # 25 is the lot size / no. of months run
-    per_month = (total_profit * 25) / 13.4
+    quantity = 75
+    total_days_in_year = 250
+    intervals = 3
+    per_month = (total_profit * quantity) / 13.4
     year_profit = per_month * 12
     brokerage_per_straddle = 250
-    profit_after_brokerage = year_profit - (brokerage_per_straddle * 3 * 250)
+    profit_after_brokerage = year_profit - (brokerage_per_straddle * intervals * total_days_in_year)
+    buy_leg_price = 11  # 0  # 2 * 2
+    cost_of_buy_leg = buy_leg_price * quantity * intervals * total_days_in_year
+    profit_after_buy_leg = profit_after_brokerage - cost_of_buy_leg
+    margin_needed_for_straddle = 216000
+    average_sl_buy = 300
+    margin_for_sl = average_sl_buy * 2 * quantity
+    total_margin = margin_needed_for_straddle + margin_for_sl
     print(
-        f'totalprofit:{total_profit * 25},per month:{per_month},year profit:{year_profit}, '
-        f'returns :{round(profit_after_brokerage / (130000 * 3), 2)}')
+        f'totalprofit:{total_profit * quantity},per month:{round(per_month)},year profit:{round(year_profit)}, '
+        f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},margin sl:{margin_for_sl * 3}  '
+        f'returns :{round(profit_after_buy_leg / (total_margin * intervals), 2)}')
 
     # only one entry.
     if False:

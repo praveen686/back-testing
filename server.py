@@ -103,14 +103,15 @@ def test_test():
 
 @app.route("/settoken", methods=["GET", "OPTIONS"])
 def settoken():
-    trading_data_by_date = trade_setup.AllTrade.trading_data_by_date
-    today_date_str: str = get_today_date_in_str()
-    day_trade: DayTrade = trading_data_by_date[today_date_str]
-
     enctoken = request.args.get('enctoken')
     if request.method == "OPTIONS":  # CORS preflight
         return _build_cors_preflight_response()
     elif request.method == "GET":  # The actual request following the preflight
+        trading_data_by_date = trade_setup.AllTrade.trading_data_by_date
+        today_date_str: str = get_today_date_in_str()
+        if today_date_str not in trading_data_by_date:
+            raise RuntimeError(f'date {today_date_str} doesnt exist')
+        day_trade: DayTrade = trading_data_by_date[today_date_str]
         day_trade.enctoken = enctoken
         return _corsify_actual_response(jsonify([{"id": 1}]))
     else:

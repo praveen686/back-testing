@@ -6,17 +6,25 @@ import pandas as pd
 import numpy as np
 
 from option_util import get_minutes
+from util import get_today_date_in_str
 from trade_setup import DayTrade
 from zerodha_algo_trader import ZerodhaBrokingAlgo
-from zerodha_api import ZerodhaApi
 
-# algo = ZerodhaBrokingAlgo(False, -1, DayTrade("", "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt"))
-# straddle = algo.prepare_option_legs(1.2, 25, "09:20")
+access_token = 'zLRJ8Ng4au5hEXosbN66q1lguMC0lTsS'
+today_date_str: str = get_today_date_in_str()
+enc_token = "PRKMhby1+HAmzzoEhloAqEms5ptkHa8o08J4+Q6/kp+0pc+i9ko4mImfTDLE7oiuzBCIAIBRlT1B7hEHhf+mOs9mC4yxdW2CHjfcOgn55XqehlNCZWAsbw=="
 
-zero = ZerodhaApi(False)
-# zero.create_new_basket("testtestest2", "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt")
-zero.add_basket_items(10205972, 'BANKNIFTY2251940200CE', "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt", 25)
+algo = ZerodhaBrokingAlgo(False, 0, DayTrade(today_date_str, access_token))
+straddle = algo.prepare_option_legs(1.6, 25, "11:50", 6)
+# straddle = algo.place_straddle_order(1.6, 25, "11:40", enc_token, access_token)
+straddle = algo.add_legs_to_basket(straddle, "11:50", access_token, 25)
+print("")
+exit(0)
 
+
+# zero = ZerodhaApi(False)
+# basket_id = zero.create_new_basket("testtestest2", "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt")
+# zero.add_basket_items(basket_id, 'BANKNIFTY2251940200CE', "mpSeGMu7mJEjTD6EyEJ8voN6UzfX7Fnt", 25)
 
 
 class Anoop:

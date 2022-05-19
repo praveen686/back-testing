@@ -113,15 +113,17 @@ class ZerodhaApi:
                 raise Exception(
                     f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
 
-    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int, transaction_type: str):
+    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int, transaction_type: str,
+                         price: float, trigger_price, order_type: str):
+
         data = {
             "exchange": "NFO",
             "tradingsymbol": symbol,
             "weight": 0,
             "params": json.dumps(
-                {"transaction_type": transaction_type, "product": "MIS", "order_type": "MARKET", "validity": "DAY",
-                 "validity_ttl": 1, "variety": "regular", "quantity": quantity, "price": 0,
-                 "trigger_price": 0, "disclosed_quantity": 0})
+                {"transaction_type": transaction_type, "product": "MIS", "order_type": order_type, "validity": "DAY",
+                 "validity_ttl": 1, "variety": "regular", "quantity": quantity, "price": price,
+                 "trigger_price": trigger_price, "disclosed_quantity": 0})
 
         }
         # y = json.dumps(a)
