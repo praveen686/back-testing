@@ -458,7 +458,7 @@ def analyze_profit(start_date: str, end_date: str, sl: float, target_profit: int
 # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2021-01-01", "2021-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
-analyze_profit("2019-02-18", "2022-02-14", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
+analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))

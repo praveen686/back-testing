@@ -220,4 +220,7 @@ def generate_data_manually():
 if __name__ == '__main__':
     # generate_trade_data_by_start_time_and_sl()
     # run_test_with_confi()
-    run_the_test("09:20:00", .2, "2019-02-18", "2022-01-03", 50, [0, 1, 2, 3, 4], '[0, 0, 0, 0, 0]', False, True)
+    # run_the_test("09:20:00", .2, "2019-02-18", "2022-01-03", 50, [0, 1, 2, 3, 4], '[0, 0, 0, 0, 0]', False, True)
+    run_the_test("09:40:00", .2, "2020-01-01", "2020-12-31", 50, [1], '[0, 0, 0, 0, 0]', True, True)
+    # run_the_test("09:40:00", .6, "2020-01-01", "2020-12-31", 50, [2], '[0, 0, 0, 0, 0]', False, True)
+    # run_the_test("09:20:00", .6, "2020-01-01", "2020-12-31", 50, [3], '[0, 0, 0, 0, 0]', True, True)

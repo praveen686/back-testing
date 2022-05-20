@@ -10,9 +10,9 @@ from util import get_today_date_in_str
 from trade_setup import DayTrade
 from zerodha_algo_trader import ZerodhaBrokingAlgo
 
-access_token = 'zLRJ8Ng4au5hEXosbN66q1lguMC0lTsS'
+access_token = '0ccraaVV1xLO76zF3FrOH7djci7r3o3z'
 today_date_str: str = get_today_date_in_str()
-enc_token = "PRKMhby1+HAmzzoEhloAqEms5ptkHa8o08J4+Q6/kp+0pc+i9ko4mImfTDLE7oiuzBCIAIBRlT1B7hEHhf+mOs9mC4yxdW2CHjfcOgn55XqehlNCZWAsbw=="
+enc_token = "kCEFtP09oy0RbK0WaO2z/cJR25YYfKZdRPiDggVaekQR1o+ZabW/aam4/K1qfnT8jyNiaPdD8pqoTuYCQOODneV5aEFGNtqQSQBD2eFux3KDq7Cv6U8u1g=="
 
 algo = ZerodhaBrokingAlgo(False, 0, DayTrade(today_date_str, access_token))
 straddle = algo.prepare_option_legs(1.6, 25, "11:50", 6)
