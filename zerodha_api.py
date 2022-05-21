@@ -198,7 +198,7 @@ class ZerodhaApi:
 
     def place_sl_order(self, position: Position, sl: float, quantity: int, enc_token: str):
         sl_trigger_price = round(position.get_premium() * sl)
-        sl_other_price = round(sl_trigger_price * 2)
+        sl_price = round(sl_trigger_price * .5)
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -220,7 +220,7 @@ class ZerodhaApi:
         data['tradingsymbol'] = position.symbol
         data['quantity'] = quantity
         data['order_type'] = "SL"
-        data['price'] = sl_other_price
+        data['price'] = sl_price
         data['trigger_price'] = sl_trigger_price
         if self.is_testing:
             response = {}

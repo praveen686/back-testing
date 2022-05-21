@@ -147,6 +147,7 @@ class ZerodhaBrokingAlgo:
         # self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity, "BUY",
         #                                   400,
         #                                   300, "SL")
+        return basket_id
 
     def place_straddle_order(self, sl: float, quantity: int, trade_time: str, enc_token: str,
                              access_token: str) -> Straddle:
@@ -154,7 +155,7 @@ class ZerodhaBrokingAlgo:
         self.load_straddles_from_file()
         straddle = self.prepare_option_legs(sl, quantity, trade_time, 6)
         # creating basket
-        self.add_legs_to_basket(straddle, trade_time, access_token, quantity)
+        basket_id = self.add_legs_to_basket(straddle, trade_time, access_token, quantity)
         self.straddle_list.append(straddle)
 
         self.zerodha_api.place_regular_order(straddle.buy_pe_position, enc_token, quantity, basket_id)

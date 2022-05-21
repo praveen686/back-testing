@@ -36,6 +36,12 @@ df_index_list = []
 df_nifty_spot_price_list = []
 
 
+# 1. get the pickle data that has the option files that has premium for every strike
+# 2. loop through the trading days
+# 3. get the all the atm strikes for the day
+# 4. get the dic from the option file that has premium for the selected strike
+# 5. loop through each minute and get the data corresponding each minute from the dic and populate the list
+# 6. use the above list to populate every minute df.
 def populate_list():
     # to hold strike list by day, just for temp purpose
     strike_list_by_day = []
@@ -119,54 +125,6 @@ def populate_list():
                     # print(count_of_strike_min)
                 print(f'strike for day:{trading_date_str} is :{strike_price}:{option_type}')
                 print("time taken e", (millis() - candle_start))
-                # for minute_key in strike_ticker_candles_for_trade_date_dic:
-                #     nifty_spot_price = get_nifty_spot_price(trading_date_str, minute_key, nifty_min_data_dic, 'close')
-                #
-                #     # print(random.randrange(100, 300, 3))
-                #     df_value_list.append(strike_ticker_candles_for_trade_date_dic[minute_key]['close'])
-                #     df_day_list.append(date_time_in_secs)
-                #     df_day_str_list.append(trading_date_str)
-                #     df_strike_price_list.append(strike_price)
-                #     df_strike_ticker_symbol_list.append(strike_ticker_symbol)
-                #     df_minute_list.append(minute_key)
-                #     df_index_list.append(count_of_strike_min)
-                #     df_nifty_spot_price_list.append(round_nearest(nifty_spot_price, 100))
-                #
-                #     day_ticker_symbols.append(strike_ticker_symbol)
-                #     count_of_strike_min = count_of_strike_min + 1
-                #     # print("time taken each minute>>>>", (millis() - candle_start), (millis() - start_of_loop))
-                #     print(count_of_strike_min)
-        # for trade_interval in []:
-        # every_minute_df = get_pickle_data("every_minute_df")
-        # every_min_values = every_minute_df.values
-        # df_day_list = every_minute_df.day.values
-        # df_strike_ticker_symbol_list = every_minute_df.strike_ticker_symbol.values
-        # value_length = len(every_min_values)
-        # for trade_interval in trade_intervals:
-        #     minute_reformatted = f'{trade_interval[0:2]}:{trade_interval[2:4]}:00'
-        #     spot_price = get_nifty_spot_price(trading_date_str, minute_reformatted, nifty_min_data_dic, 'close')
-        #     spot_price_nearest = round_nearest(spot_price, 100)
-        #     for option_type in ["PE", "CE"]:
-        #         # atm_premium = random.randrange(100, 300, 3)
-        #         df_other_day_list.append(date_time_in_secs)
-        #         df_other_day_str_list.append(trading_date_str)
-        #         df_other_time_intervals.append(trade_interval)
-        #         strike_ticker_symbol = f'{instrument_prefix}{spot_price_nearest}{option_type}'
-        #         df_other_atm_option_strike_list.append(strike_ticker_symbol)
-        #         hello = every_minute_df.loc[(every_minute_df.index == date_time_in_secs) & (
-        #                 every_minute_df.strike_ticker_symbol == strike_ticker_symbol)]
-        #         # index_strike_ticker = [index for index in range(value_length) if
-        #         #                        every_min_values[index][0] == date_time_in_secs and every_min_values[index][
-        #         #                            3] == strike_ticker_symbol]
-        #
-        #         # print("index strike ticker", index_strike_ticker[0])
-        #         # if len([]) == 0:
-        #         #     print("candle dic empty", strike_ticker_symbol, trading_date_str, option_type, trade_interval)
-        #         # df_other_index_strike_ticker.append(index_strike_ticker[0] if len(index_strike_ticker) > 0 else -1)
-        #
-        #         # df_other_atm_premium_list.append(atm_premium)
-        #         df_other_option_type_list.append(option_type)
-        #     print("done for the interval", trading_date_str, trade_interval)
 
     total_strike_count = sum([len(strike_list) for strike_list in strike_list_by_day])
     print("total_strikes>>>", total_strike_count, len(trading_days_list), len(minute_list),
@@ -458,7 +416,7 @@ def analyze_profit(start_date: str, end_date: str, sl: float, target_profit: int
 # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
 # analyze_profit("2021-01-01", "2021-12-31", sl=.6, target_profit=40, day_trailing_sl=20, week_day=-1)
-analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
+# analyze_profit("2020-01-01", "2020-12-31", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
 # test_looping()
 # get_all_nifty_strikes()
 # print(len(minute_list))

@@ -43,7 +43,8 @@ df_nifty_spot_price_list = []
 # ***************** 2021-02-24 starting from 10:20
 
 
-# this method is to get the atm ticker symbol associated with each interval 9.20 9.40 etc as LegTrade classes
+# 1.get the atm ticker symbol associated with each interval 9.20 9.40 etc.
+# 2.create a dic with key as the combination of ticker and trading date and populate LegTrade as the value of it.
 def get_all_atm_strikes_by_interval():
     strike_count = 0
     df_other_day_list = []
@@ -86,6 +87,8 @@ def get_all_atm_strikes_by_interval():
                 strike_ticker_symbol = f'{instrument_prefix}{spot_price_nearest}{option_type}'
                 df_other_atm_option_strike_list.append(strike_ticker_symbol)
                 interval_key = f'{strike_ticker_symbol}|{trading_date_str}'
+                # same strike my repeat in a day as the strike which was atm at 9.30 migh continue being atm till 11 or
+                # might go up/down and come back to become atm at 11
                 if interval_key not in atm_strikes_by_interval:
                     atm_strikes_by_interval[interval_key] = [LegTrade(trade_interval, trading_date_str,
                                                                       strike_ticker_symbol, india_vix)]
@@ -469,51 +472,53 @@ if False:
 
 # only for the current year.
 if True:
-    quantity, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 75, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
-    # quantity, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 75, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
-    # quantity, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 75, 52, 11, 116000, 480, '2021-01-01', '2021-12-31'
-    # quantity, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 75, 8, 11, 116000, 480, "2022-01-03", "2022-02-28"
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31'
+    lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 6, 11, 116000, 480, "2022-01-03", "2022-02-11"
     brokerage_per_straddle = 250
+    lot_quantity = 25
 
     result_mon = result_tue = result_wed = result_thu = result_fri = None
-    result_mon = analyze_interval_trades(["0940", "1040", "1140"], start_date, end_date, 1.2, -1, 60,
+    result_mon = analyze_interval_trades(["0940", "1000", "1020"], start_date, end_date, 1.2, -1, 35,
                                          stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
                                          min_profit_perc=-1, trailing_sl_perc=.5)
-    result_tue = analyze_interval_trades(["0940", "1040", "1140"], start_date, end_date, 1.2, -1, 30,
-                                         stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=True,
+    result_tue = analyze_interval_trades(["0940", "1000", "1020"], start_date, end_date, 1.2, -1, 35,
+                                         stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False,
                                          min_profit_perc=-1, trailing_sl_perc=.5)
-    result_wed = analyze_interval_trades(["0940", "1040", "1140"], start_date, end_date, 1.6, -1, 40,
-                                         stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=True,
+    result_wed = analyze_interval_trades(["0940", "1000", "1020"], start_date, end_date, 1.6, -1, 50,
+                                         stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False,
                                          min_profit_perc=-1, trailing_sl_perc=.5)
-    result_thu = analyze_interval_trades(["0920", "1040", "1140"], start_date, end_date, 1.6, -1, 40,
-                                         stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=True,
+    result_thu = analyze_interval_trades(["0920", "1000", "1020"], start_date, end_date, 1.6, -1, 50,
+                                         stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
                                          min_profit_perc=-1, trailing_sl_perc=.5)
-    result_fri = analyze_interval_trades(["0940", "1040", "1140"], start_date, end_date, 1.2, -1, 60,
+    result_fri = analyze_interval_trades(["0940", "1000", "1020"], start_date, end_date, 1.2, -1, 35,
                                          stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
                                          min_profit_perc=-1, trailing_sl_perc=.5)
     # result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
     #                                       stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False)
-    results = [result_mon, result_tue, result_wed, result_thu]
+    results = [result_mon, result_tue, result_wed, result_thu, result_fri]
     valid_results = [result for result in results if result is not None]
     total_profit = sum([result["total_profit"] for result in valid_results])
     # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
     # 25 is the lot size / no. of months run
 
     total_days_in_year = weeks_run * len(valid_results)
-    intervals = result_tue["intervals"]
+    intervals = valid_results[0]["intervals"]
     # per_month = (total_profit * quantity) / months_run
-    year_profit = total_profit * quantity
+    year_profit = total_profit * lots * lot_quantity
     yearly_brokerage = brokerage_per_straddle * intervals * total_days_in_year
     profit_after_brokerage = year_profit - yearly_brokerage
-    yearly_cost_of_buy_leg = buy_legs_cost * quantity * intervals * total_days_in_year
-    profit_after_buy_leg = profit_after_brokerage - yearly_cost_of_buy_leg
+    yearly_cost_of_buy_leg = buy_legs_cost * lots * lot_quantity * intervals * total_days_in_year
+    profit_after_buy_leg = profit_after_brokerage - 0
 
-    daily_margin_for_sl = average_sl_buy * 2 * quantity * intervals
-    daily_straddle_margin = margin_needed_for_straddle * intervals
+    daily_margin_for_sl = average_sl_buy * 2 * lots * lot_quantity * intervals
+    daily_straddle_margin = margin_needed_for_straddle * lots * intervals
     daily_margin = daily_straddle_margin + daily_margin_for_sl
     print(
-        f'totalprofit:{total_profit * quantity},year profit:{round(year_profit)}, y_brokerage:{yearly_brokerage},y_buy_leg:{yearly_cost_of_buy_leg}, '
-        f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},margin sl:{daily_margin_for_sl}  '
+        f'totalprofit:{year_profit},year profit:{round(year_profit)}, y_brokerage:{yearly_brokerage},y_buy_leg:{yearly_cost_of_buy_leg}, '
+        f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},straddle margin:{daily_straddle_margin},'
+        f'margin sl:{daily_margin_for_sl}  '
         f'returns :{round(profit_after_buy_leg / daily_margin, 2)}')
 
     # only one entry.
