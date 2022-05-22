@@ -1,11 +1,12 @@
 import os
 import re
+from typing import List
+
 from util import *
 
 
-def get_all_nifty_weekly_option_files(nifty_type):
+def get_all_nifty_weekly_option_files(nifty_type, years: List[str]):
     path = "/Users/anoopisaac/projects/backtest-options/"
-    years = ['2019', '2020', '2021', '2022']
     year_end_pattern = "\d\d"
     month_pattern = "([0-9]|O|N|D|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
     expiry_day_pattern = "\d\d"
@@ -65,4 +66,3 @@ def get_all_nifty_weekly_option_files_for_2022(nifty_type):
             # print(only_nifty_weekly_files)
             all_nifty_weekly_option_files.extend(only_nifty_weekly_files)
     return all_nifty_weekly_option_files
-

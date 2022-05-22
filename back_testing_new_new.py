@@ -3,37 +3,20 @@ import random
 from itertools import groupby
 from typing import List, Dict
 
-import numpy as np
 import pandas as pd
 
 import constants
 from option_util import get_minute_list, millis, load_nifty_min_data, load_india_vix_day_data, get_nifty_spot_price, \
     get_nearest_thursday, get_india_vix, round_nearest, get_nearest_expiry, get_instrument_prefix, \
     get_ticker_data_by_expiry_and_strike
+from store_ticker_data_from_zerodha import store_india_vix_day_data_from_zerodha
 from util import get_pickle_data, write_pickle_data, get_date_from_str, get_date_in_str
-
-minute_list = get_minute_list('%H:%M:%S', "09:15:00", "15:30:00")
-
 vix_data_dic = get_pickle_data('india-vix-day-candle')
 day_keys = list(vix_data_dic.keys())
 # print(len(strike_prices) * len(day_keys) * len(minute_list))
 # print(len(strike_prices), len(day_keys), len(minute_list))
 trade_intervals = ["0920", "0940", "1000", "1020", "1040",
                    "1100", "1120", "1140", "1200", "1220", "1240", "1300", "1320", "1340", "1400"]
-df_base_min_list = []
-df_base_day_list = []
-df_base_day_str_list = []
-df_base_india_vix_list = []
-df_base_nifty_spot_price_list = []
-
-df_minute_list = []
-df_day_list = []
-df_day_str_list = []
-df_strike_price_list = []
-df_strike_ticker_symbol_list = []
-df_value_list = []
-df_index_list = []
-df_nifty_spot_price_list = []
 
 
 # *********** date that are present for india vix but no spot price present for whole day
@@ -44,7 +27,7 @@ df_nifty_spot_price_list = []
 
 
 # 1.get the atm ticker symbol associated with each interval 9.20 9.40 etc.
-# 2.create a dic with key as the combination of ticker and trading date and populate LegTrade as the value of it.
+# 2.create a dic with key as the combination of ticker and trading date and value as LegTrade (without premium)
 def get_all_atm_strikes_by_interval():
     strike_count = 0
     df_other_day_list = []
@@ -98,7 +81,7 @@ def get_all_atm_strikes_by_interval():
         # atm_premium = random.randrange(100, 300, 3)
 
     print("strike count", strike_count)
-    print(f'len of atm_strikes_by_interval:{len(atm_strikes_by_interval)},all strike:{len(df_day_list)}')
+    print(f'len of atm_strikes_by_interval:{len(atm_strikes_by_interval)}')
     write_pickle_data('atm_strikes_by_interval', atm_strikes_by_interval)
     print("time taken>>>", (millis() - start_time))
 
@@ -471,7 +454,7 @@ if False:
 # analyze_interval_trades(["0940", "1040", "1140", "1240"], '2019-02-18', '2022-02-11',  .2, -1, 45, 4, True)
 
 # only for the current year.
-if True:
+if False:
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31'

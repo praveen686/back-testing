@@ -10,7 +10,7 @@ from util import write_pickle_data, get_pickle_data
 print("")
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
-    'Authorization': 'enctoken D1tQVzvB7+qZJjrBVYiQHd8kA5htch1m1CjkFfAnldIA8hl22Tqj7e+mXK5hRsDspDTFNHjntF9fm+9ktb2uQXQGnHR/ammbN2JCTxfYVdJEujvSFgi5yQ=='
+    'Authorization': 'enctoken cmnrGROHHVn3qJQ27cMZeh5bkOtCOwy2/+2MM4YVJAzZRPAyAiNVDLq43j0YtDzEezDt2vt14ZgmKzTnYxVBLxUH1kNpMLWolaUPA7iQ8bcwGlAJ7qIPvA=='
 }
 
 columns = ['date_time', 'open', 'high', 'low', 'close', 'year', 'month', 'day']
@@ -79,14 +79,14 @@ def get_as_dic(candle_list):
     return candle_dic
 
 
-def store_india_vix_day_data_from_zerodha():
+def store_india_vix_day_data_from_zerodha(file_name, start_year, end_year):
     # india_vix_df = pd.DataFrame(columns=columns)
-    india_vix_candle_list = read_day_data(264969, 2019, 2023)
+    india_vix_candle_list = read_day_data(264969, start_year, end_year)
     # india_vix_df = pd.DataFrame(india_vix_candle_list)
     india_vix_candle_dic = get_as_dic(india_vix_candle_list)
     # india_vix_df.append(india_vix_candle_list)
     # india_vix_df.to_csv("india-vix-minute-candle.csv")
-    write_pickle_data('india-vix-day-candle', india_vix_candle_dic)
+    write_pickle_data(file_name, india_vix_candle_dic)
 
 
 def store_nifty_min_candle_from_zerodha():
@@ -96,21 +96,22 @@ def store_nifty_min_candle_from_zerodha():
     write_pickle_data(f'nifty-minute-candle', nifty_candle_dic)
 
 
-def store_bnifty_min_candle_from_zerodha():
+def store_bnifty_min_candle_from_zerodha(file_name, start_year, end_year):
     # nifty_df = pd.DataFrame(columns=columns)
-    nifty_candle_list = read_kite_nifty_min_data(260105, 2019, 2023)
+    nifty_candle_list = read_kite_nifty_min_data(260105, start_year, end_year)
     nifty_candle_dic = get_as_dic(nifty_candle_list)
-    write_pickle_data(f'b-nifty-minute-candle', nifty_candle_dic)
-
+    write_pickle_data(file_name, nifty_candle_dic)
 
 # nifty_one_minute_candle_list=read_kite_data(256265)
 # print(nifty_one_minute_candle_list)
+#
+# vix_data_dic = get_pickle_data('india-vix-day-candle')
+# day_keys = list(vix_data_dic.keys())
+# day_keys = [date.replace("T00:00:00+0530", "") for date in day_keys]
+# start_date = '2019-01-06'
+# print('werewr'.replace('we', 'ttt'))
+# print(start_date in day_keys)
+# index = day_keys.index(f'{start_date}')
+# print(index)
 
-vix_data_dic = get_pickle_data('india-vix-day-candle')
-day_keys = list(vix_data_dic.keys())
-day_keys = [date.replace("T00:00:00+0530", "") for date in day_keys]
-start_date = '2019-01-06'
-print('werewr'.replace('we', 'ttt'))
-print(start_date in day_keys)
-index = day_keys.index(f'{start_date}')
-print(index)
+# store_india_vix_day_data_from_zerodha()
