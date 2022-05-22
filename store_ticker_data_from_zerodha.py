@@ -10,7 +10,7 @@ from util import write_pickle_data, get_pickle_data
 print("")
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
-    'Authorization': 'enctoken cmnrGROHHVn3qJQ27cMZeh5bkOtCOwy2/+2MM4YVJAzZRPAyAiNVDLq43j0YtDzEezDt2vt14ZgmKzTnYxVBLxUH1kNpMLWolaUPA7iQ8bcwGlAJ7qIPvA=='
+    'Authorization': 'enctoken Lr98yWYlwxyw2k/scsTkjM39gQuoaL5aKi1x6Jty8UmSRiOhj2bX+rFnJWWuzLLNbWqxomptMVC7rV9MkKrUHx0NHnq34ujZ7dKc0Z3cwW5LKO1KUaRaZg=='
 }
 
 columns = ['date_time', 'open', 'high', 'low', 'close', 'year', 'month', 'day']

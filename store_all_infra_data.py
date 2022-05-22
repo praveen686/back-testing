@@ -24,7 +24,7 @@ def get_strikes_by_day(day_strike_index_list: List, day: int):
 # 4. get the dic from the option file that has premium for the selected strike
 # 5. loop through each minute and get the data corresponding each minute from the dic and populate the list
 # 6. use the above list to populate every minute df.
-def populate_every_minute_df():
+def populate_every_minute_df(start_date: str, end_date: str):
     df_minute_list = []
     df_day_list = []
     df_day_str_list = []
@@ -52,6 +52,8 @@ def populate_every_minute_df():
     print(f'time:{millis() - start}')
     trading_days_list = [trade_date.replace("T00:00:00+0530", "") for trade_date in trading_days_list]
     for trading_date_str in trading_days_list:
+        if trading_date_str < start_date or trading_date_str > end_date:
+            continue
         day_spot_price_list = []
         day_ticker_symbols = []
         trading_date = get_date_from_str(trading_date_str)
@@ -120,7 +122,9 @@ def populate_every_minute_df():
         write_pickle_data('every_minute_df', every_minute_df)
     print("done with iteration")
 
-# get all the atm strikes for all the trading days and minute by going through india vix days.
+
+# get all the atm strike (34000) for every day and for every minute combination. Diff from spot price is, it will
+# be rounded, also will be grouped by price to avoid duplicate strike price for the same day
 def get_all_b_nifty_atm_strikes_by_min(file_name: str):
     df_base_min_list = []
     df_base_day_list = []
@@ -164,7 +168,7 @@ def get_all_b_nifty_atm_strikes_by_min(file_name: str):
     write_pickle_data(file_name, nifty_strike_index_values)
 
 
-def store_all_data():
+def store_all_infra_data():
     # india vix data
 
     # nifty_option_data_files_till_20 = get_all_nifty_weekly_option_files('NIFTY',years)
@@ -195,4 +199,8 @@ def store_all_data():
     # store_bnifty_min_candle_from_zerodha()
 
 
-store_all_data()
+# store_all_infra_data()
+
+# populating a dataframe with premium data for all the b nifty ticker which has been atm strike at some point. Here
+# please note that I am not getting all the ticker but just the ones that will help me with 'straddle' analysis
+populate_every_minute_df("2019-01-01", "2022-04-28")
