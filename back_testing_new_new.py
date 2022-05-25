@@ -449,7 +449,7 @@ def generate_ticker_symbol(expiry_date, strike_price, option_type):
 
 
 # only for the current year.
-if False:
+if True:
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
     # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 1, 52, 11, 116000, 480, '2021-01-01', '2022-02-11'
@@ -506,4 +506,5 @@ if False:
         f'margin sl:{daily_margin_for_sl}  '
         f'returns :{round(profit_after_buy_leg / daily_margin, 2)}')
 
-get_all_atm_strikes_by_interval("2019-01-01", "2021-12-31")
+# get_all_atm_strikes_by_interval("2019-01-01", "2022-04-28")
+# generate_day_trades_by_interval()
