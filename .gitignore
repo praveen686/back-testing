@@ -11,3 +11,15 @@ day_strike_index_list
 /_0920_ce_strike_df
 /_0920_pe_strike_df
 /every_minute_df_copy_apr_27_22
+b-nifty-minute-candle
+b_nifty_weekly_option_data_files_2020
+b_nifty_weekly_option_data_files_till_20
+back_test_trade_df
+day_trades
+every_minute_df
+india-vix-day-candle
+nse_json_datass
+testtest
+zerodha_orders
+grouped_leg_trade
+/nse_json_data
