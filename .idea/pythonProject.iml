@@ -3,6 +3,10 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/trade-ui/build" />
+      <excludeFolder url="file://$MODULE_DIR$/trade-ui/node_modules" />
+      <excludeFolder url="file://$MODULE_DIR$/algo_trading_data" />
+      <excludeFolder url="file://$MODULE_DIR$/trade_data" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
