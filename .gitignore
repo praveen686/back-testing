@@ -23,3 +23,8 @@ testtest
 zerodha_orders
 grouped_leg_trade
 /nse_json_data
+/atm_leg_trades_by_date_n_strike
+/atm_strikes_by_date
+/day_profit_df
+/atm_strikes_by_interval
+/day_trades_all_minute
