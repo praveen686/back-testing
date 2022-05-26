@@ -1,4 +1,3 @@
-import copy
 import datetime
 import random
 from itertools import groupby
@@ -30,13 +29,13 @@ trade_intervals = ["0920", "0940", "1000", "1020", "1040",
 
 # 1.get the atm ticker symbol associated with each interval 9.20 9.40 etc.
 # 2.create a dic with key as the combination of ticker and trading date and value as LegTrade (without premium)
-def get_all_atm_strikes_by_date(start_date: str, end_date: str):
+def get_all_atm_strikes_by_interval(start_date: str, end_date: str):
     strike_count = 0
     df_other_day_list = []
     df_other_day_str_list = []
     df_other_time_intervals = []
     df_other_atm_option_strike_list = []
-    atm_leg_trades_by_date_n_strike: Dict[str, LegTrade] = {}
+    atm_strikes_by_interval: Dict[str, List[LegTrade]] = {}
 
     nifty_min_data_dic = load_nifty_min_data("BANKNIFTY")
     india_vix_day_dic = load_india_vix_day_data()
@@ -44,9 +43,6 @@ def get_all_atm_strikes_by_date(start_date: str, end_date: str):
     # trading_days_list = [trade_date.replace("T00:00:00+0530", "") for trade_date in trading_days_list]
     expiry_df = pd.read_csv("expiry_df.csv")
     start_time = millis()
-    # this holds the list of unique atm leg trades, unique in the sense, same strike can become atm multiple times,
-    # still there will be only entry in the list
-    unique_leg_trades: List[LegTrade] = []
     for ticker_format_trade_date in trading_days_list:
         trading_date_str = ticker_format_trade_date.replace("T00:00:00+0530", "")
         if trading_date_str == "2019-10-27" or trading_date_str == "2020-11-14" or trading_date_str == "2021-11-04" \
@@ -61,39 +57,36 @@ def get_all_atm_strikes_by_date(start_date: str, end_date: str):
         nearest_expiry_date = get_nearest_expiry(trading_date_str, expiry_df)
         instrument_prefix = get_instrument_prefix(get_date_in_str(nearest_expiry_date, constants.DATE_FORMAT),
                                                   "BANKNIFTY")
-        trading_minute_list = get_minute_list('%H:%M:%S', "09:15:00", "15:00:00")
-        for trading_minute in trading_minute_list:
 
-            # for trade_interval in trade_intervals:
-            #     minute_reformatted = f'{trade_interval[0:2]}:{trade_interval[2:4]}:00'
-            spot_price = get_nifty_spot_price(trading_date_str, trading_minute, nifty_min_data_dic, 'close')
+        for trade_interval in trade_intervals:
+            minute_reformatted = f'{trade_interval[0:2]}:{trade_interval[2:4]}:00'
+            spot_price = get_nifty_spot_price(trading_date_str, minute_reformatted, nifty_min_data_dic, 'close')
             if spot_price == -1:
-                print(f'no spot price present for date:{trading_date_str} and time:{trading_minute}')
+                print(f'no spot price present for date:{trading_date_str} and time:{trade_interval}')
                 continue
             spot_price_nearest = round_nearest(spot_price, 100)
             for option_type in ["PE", "CE"]:
                 strike_count = strike_count + 1
                 df_other_day_list.append(date_time_in_secs)
                 df_other_day_str_list.append(trading_date_str)
-                # df_other_time_intervals.append(trade_interval)
+                df_other_time_intervals.append(trade_interval)
                 strike_ticker_symbol = f'{instrument_prefix}{spot_price_nearest}{option_type}'
                 df_other_atm_option_strike_list.append(strike_ticker_symbol)
-                strike_date_key = f'{strike_ticker_symbol}|{trading_date_str}'
+                interval_key = f'{strike_ticker_symbol}|{trading_date_str}'
                 # same strike my repeat in a day as the strike which was atm at 9.30 migh continue being atm till 11 or
                 # might go up/down and come back to become atm at 11
-                if strike_date_key not in atm_leg_trades_by_date_n_strike:
-                    leg_trade = LegTrade(trading_date_str, strike_ticker_symbol, india_vix, spot_price_nearest,
-                                         option_type)
-                    atm_leg_trades_by_date_n_strike[strike_date_key] = leg_trade
-                    leg_trade.atm_minutes.append(trading_minute)
+                if interval_key not in atm_strikes_by_interval:
+                    atm_strikes_by_interval[interval_key] = [LegTrade(trade_interval, trading_date_str,
+                                                                      strike_ticker_symbol, india_vix)]
                 else:
-                    leg_trade: LegTrade = atm_leg_trades_by_date_n_strike[strike_date_key]
-                    leg_trade.atm_minutes.append(trading_minute)
+                    atm_strikes_by_interval[interval_key].append(LegTrade(trade_interval, trading_date_str,
+                                                                          strike_ticker_symbol, india_vix))
         # atm_premium = random.randrange(100, 300, 3)
 
     print("strike count", strike_count)
-    print(f'len of atm_leg_trades_by_date_n_strike:{len(atm_leg_trades_by_date_n_strike)}')
-    write_pickle_data('atm_leg_trades_by_date_n_strike', atm_leg_trades_by_date_n_strike)
+    print(f'len of atm_strikes_by_interval:{len(atm_strikes_by_interval)}')
+    write_pickle_data('atm_strikes_by_interval', atm_strikes_by_interval)
+    print(sum([len(atm_strikes_by_interval[key]) for key in atm_strikes_by_interval]))
     print("time taken>>>", (millis() - start_time))
 
 
@@ -109,73 +102,67 @@ def get_all_atm_strikes_by_date(start_date: str, end_date: str):
 # 1.1 check whether current strike is present the atm strike list that I had earlier prepared for the day, for ex: BANKNIFTY22D1334000PE|2022-05-31 (might be for 09:40) will be the key
 # 1.1.1 if present get the LegTrade from 'atm strike list' and populate the premiums
 # 2 group the final list of 'LegTrade' and group it based on day first to get the DayTrade and then based on Straddle Time to form the 'LegPair'
-def populate_leg_trade_with_premium_data_n_group_it_by_date():
+def generate_day_trades_by_interval():
     total_count_of_strikes = 0
     every_minute_df = get_pickle_data('every_minute_df')
     # this has all the entries for all the symbols
     row_entries = every_minute_df.values
-    atm_leg_trades_by_date_n_strike: Dict[str, LegTrade] = get_pickle_data('atm_leg_trades_by_date_n_strike')
+    atm_strikes_by_interval_src_list: Dict[str, List[LegTrade]] = get_pickle_data('atm_strikes_by_interval')
     atm_strikes_by_interval_dest_list = []
     start_time = millis()
     # for index, row_entry in enumerate(row_entries):
-    all_leg_trades: List[LegTrade] = []
-    active_leg_trade: LegTrade = None
+    all_interval_leg_trades: List[LegTrade] = []
+    active_leg_trades: List[LegTrade] = None
     for index, row_entry in enumerate(row_entries):
         # whenever 9:15 is reached, will append the premium to a new LegTrade fetched from 'atm_strikes_by_interval'
         if row_entry[4] == "09:15:00":
             total_count_of_strikes = total_count_of_strikes + 1
 
             leg_trade_strike_key = f'{row_entry[3]}|{row_entry[1]}'  # a combination of symbol and date
-            if leg_trade_strike_key in atm_leg_trades_by_date_n_strike:
+            if leg_trade_strike_key in atm_strikes_by_interval_src_list:
                 # the way I have set up the datamodel, a key of 'symbol and date' might have multiple
                 # atm strikes under it as the same strike would continue as the atm for so long or come back at later
                 # point and become atm then
                 # for ex: 'BANKNIFTY 22 D 13 34000' might be atm strike at 9:20 till 11:20 or come back at 13:20 and become atm again
-                active_leg_trade = atm_leg_trades_by_date_n_strike[leg_trade_strike_key]
-                all_leg_trades.append(active_leg_trade)
+                active_leg_trades = atm_strikes_by_interval_src_list[leg_trade_strike_key]
+                all_interval_leg_trades.extend(active_leg_trades)
             else:
-                active_leg_trade = None
-        if active_leg_trade is not None:
-            active_leg_trade.premium_tickers.append(row_entry[5])  # catching premium
-
+                active_leg_trades = None
+        if active_leg_trades is not None:
+            for active_leg_trade in active_leg_trades:
+                active_leg_trade.premium_tickers.append(row_entry[5])  # catching premium
     grouped_leg_trade_by_date: List[List[LegTrade]] = [list(g) for k, g in
-                                                       groupby(sorted(all_leg_trades,
-                                                                      key=lambda xy: xy.trade_date),
-                                                               lambda xy: xy.trade_date)]
+                                                       groupby(sorted(all_interval_leg_trades,
+                                                                      key=lambda xy: xy.straddle_date),
+                                                               lambda xy: xy.straddle_date)]
 
     # loop through
     day_trades: List[DayTrade] = []
     for date_leg_trades in grouped_leg_trade_by_date:
-        day_trade = DayTrade(date_leg_trades[0].trade_date, date_leg_trades[0].india_vix, date_leg_trades)
-        day_trades.append(day_trade)
-        # if len(date_leg_trades) != 30:
-        #     print(f'data not correct for the date :{date_leg_trades[0].straddle_date}')
+        if len(date_leg_trades) != 30:
+            print(f'data not correct for the date :{date_leg_trades[0].straddle_date}')
+        leg_pair_time_dic: Dict[str, LegPair] = {}
+        # leg_pairs: List[LegPair] = []
+        leg_trade_pairs: List[List[LegTrade]] = [list(g) for k, g in
+                                                 groupby(
+                                                     sorted(date_leg_trades, key=lambda xy: xy.straddle_time),
+                                                     lambda xy: xy.straddle_time)]
+        for leg_trade_pair in leg_trade_pairs:
+            leg_pair: LegPair = LegPair(leg_trade_pair[0].straddle_time, leg_trade_pair[0], leg_trade_pair[1])
+            leg_pair_time_dic[leg_trade_pair[0].straddle_time] = leg_pair
+            # leg_pairs.append(leg_pair)
+        day_trades.append(DayTrade(leg_pair_time_dic, date_leg_trades[0].straddle_date, date_leg_trades[0].india_vix))
 
-        # leg_pair_time_dic: Dict[str, LegPair] = {}
-        # # leg_pairs: List[LegPair] = []
-        # leg_trade_pairs: List[List[LegTrade]] = [list(g) for k, g in
-        #                                          groupby(
-        #                                              sorted(date_leg_trades, key=lambda xy: xy.straddle_time),
-        #                                              lambda xy: xy.straddle_time)]
-        # for leg_trade_pair in leg_trade_pairs:
-        #     leg_pair: LegPair = LegPair(leg_trade_pair[0].straddle_time, leg_trade_pair[0], leg_trade_pair[1])
-        #     leg_pair_time_dic[leg_trade_pair[0].straddle_time] = leg_pair
-        #     # leg_pairs.append(leg_pair)
-        # day_trades.append(DayTrade(leg_pair_time_dic, date_leg_trades[0].straddle_date, date_leg_trades[0].india_vix))
-
-    write_pickle_data("day_trades_all_minute", day_trades)
+    write_pickle_data("day_trades", day_trades)
     # print(x_temp, total_count_of_strikes)
     # print(len(atm_strikes_by_interval_dest_list))
     print(millis() - start_time)
 
 
 class LegTrade:
-    def __init__(self, trade_date: str, ticker_symbol: str, india_vix: int, strike_price, option_type):
-        # list of minutes at which this particular leg/ticker was atm
-        self.atm_minutes: List[str] = []
-        self.strike_price: float = strike_price
-        self.option_type: str = option_type
-        self.trade_date: str = trade_date
+    def __init__(self, straddle_time: str, trade_date: str, ticker_symbol: str, india_vix: int):
+        self.straddle_time: str = straddle_time
+        self.straddle_date: str = trade_date
         self.ticker_symbol = ticker_symbol
         self.premium_tickers = []
         self.valid_prem_tickers = []
@@ -280,20 +267,12 @@ class LegPair:
         return self.pe_leg.get_profit(minute_index) + self.ce_leg.get_profit(minute_index)
 
 
-class NewDayTrade:
-    def __init__(self, trade_date_str: str, india_vix: float, leg_trades: List[LegTrade]):
-        self.trade_date_str: str = trade_date_str
-        self.india_vix: float = india_vix
-        self.leg_trades: List[LegTrade] = leg_trades
-
-
 class DayTrade:
-    def __init__(self, trade_date_str: str, india_vix: float, leg_trades: List[LegTrade]):
+    def __init__(self, leg_pair_dic: Dict[str, LegPair], trade_date_str: str, india_vix: int):
+        self.leg_pair_dic: Dict[str, LegPair] = leg_pair_dic
         self.trade_date_str: str = trade_date_str
-        self.india_vix: float = india_vix
-        self.leg_trades: List[LegTrade] = leg_trades
-        # this list holds the trades that needs to be backtested
-        self.filtered_leg_pairs_by_time: List[LegPair] = []
+        self.filtered_leg_pairs_by_time: List[LegPair] = None
+        self.india_vix = india_vix
         self.profit_tracker = []
         # this profit is different from other, as this will cause the flow to stop if this profit has been reached.
         self.is_stop_at_target_profit_reached = False
@@ -302,40 +281,15 @@ class DayTrade:
         # after reaching above profit, if falls below trailing sl, the process will be stopped.
         self.is_trailing_sl_hit = False
 
-    # def __init__(self, leg_pair_dic: Dict[str, LegPair], trade_date_str: str, india_vix: int):
-    #     self.leg_pair_dic: Dict[str, LegPair] = leg_pair_dic
-    #     self.trade_date_str: str = trade_date_str
-    #     self.filtered_leg_pairs_by_time: List[LegPair] = None
-    #     self.india_vix = india_vix
-    #     self.profit_tracker = []
-    #     # this profit is different from other, as this will cause the flow to stop if this profit has been reached.
-    #     self.is_stop_at_target_profit_reached = False
-    #     # even though this profit is reached, it will still check for trailing sl
-    #     self.is_target_profit_reached = False
-    #     # after reaching above profit, if falls below trailing sl, the process will be stopped.
-    #     self.is_trailing_sl_hit = False
-
     # setting the pairs and start minute that are applicable for selected time intervals
     def set_leg_pairs_by_straddle_times(self, straddle_times: List[str]):
         self.filtered_leg_pairs_by_time = []
         for straddle_time in straddle_times:
-            formatted_minute_str = f'{straddle_time[0:2]}:{straddle_time[2:4]}:00'
-            pe_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            formatted_minute_str in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
-            ce_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            formatted_minute_str in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
-
-            if pe_leg_trade is not None and ce_leg_trade is not None:
-                leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
-                leg_pair.start_min_index = get_start_minute_index(straddle_time)
+            if straddle_time in self.leg_pair_dic:
+                leg_pair = self.leg_pair_dic[straddle_time]
                 leg_pair.selected_straddle_time = straddle_time
+                leg_pair.start_min_index = get_start_minute_index(straddle_time)
                 self.filtered_leg_pairs_by_time.append(leg_pair)
-
-                # # todo make the change here to fetch based on the time
-                # leg_pair = self.leg_pair_dic[straddle_time]
-                # leg_pair.selected_straddle_time = straddle_time
-                # leg_pair.start_min_index = get_start_minute_index(straddle_time)
-                # self.filtered_leg_pairs_by_time.append(leg_pair)
             else:
                 print("x")
 
@@ -395,7 +349,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
                             is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float):
     # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
     analyze_start_time = millis()
-    day_trades: List[DayTrade] = get_pickle_data("day_trades_all_minute")
+    day_trades: List[DayTrade] = get_pickle_data("day_trades")
     # 2019-10-27
     day_trades = [day_trade for day_trade in day_trades if start_date <= day_trade.trade_date_str <= end_date]
     # day_trades = [day_trade for day_trade in day_trades if '2019-10-27' <= day_trade.trade_date_str <= "2019-10-27"]
@@ -496,67 +450,64 @@ def generate_ticker_symbol(expiry_date, strike_price, option_type):
     return f'{prefix}{strike_price}{option_type}'
 
 
-def run_analysis(status: bool):
-    # only for the current year.
-    if status:
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 1, 52, 11, 116000, 480, '2021-01-01', '2022-02-11'
-        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 1, 52, 11, 116000, 480, '2019-01-01', '2022-04-28'
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28"
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 6, 11, 116000, 480, "2022-01-18", "2022-01-18"
-        brokerage_per_straddle = 250
-        lot_quantity = 25
-        # interval_times = ["1040", "1100", "1120", "1140"]
-        # interval_times = ["0940", "1000", "1020", "1040"]
-        interval_times = ["0940", "1040", ]
-        interval_times_thu = ["0920", "1040"]
-        # interval_times_fri = ["0940", "1000", "1020", "1040"]
+# only for the current year.
+if True:
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31'
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31'
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 1, 52, 11, 116000, 480, '2021-01-01', '2022-02-11'
+    lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 1, 52, 11, 116000, 480, '2019-01-01', '2022-04-28'
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 16, 11, 116000, 480, "2022-01-18", "2022-01-18"
+    # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 6, 11, 116000, 480, "2022-01-04", "2022-01-04"
+    brokerage_per_straddle = 250
+    lot_quantity = 25
+    # interval_times = ["1040", "1100", "1120", "1140"]
+    # interval_times = ["0940", "1000", "1020", "1040"]
+    interval_times = ["0940", "1040", ]
+    interval_times_thu = ["0920", "1040"]
+    # interval_times_fri = ["0940", "1000", "1020", "1040"]
 
-        result_mon = result_tue = result_wed = result_thu = result_fri = None
-        # result_mon = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 75,
-        #                                      stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
-        #                                      min_profit_perc=-1, trailing_sl_perc=.5)
-        result_tue = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 65,
-                                             stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=True,
-                                             min_profit_perc=-1, trailing_sl_perc=.5)
-        result_wed = analyze_interval_trades(interval_times, start_date, end_date, 1.6, -1, 50,
-                                             stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=True,
-                                             min_profit_perc=-1, trailing_sl_perc=.5)
-        result_thu = analyze_interval_trades(interval_times_thu, start_date, end_date, 1.6, -1, 65,
-                                             stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=True,
-                                             min_profit_perc=-1, trailing_sl_perc=.5)
-        result_fri = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 50,
-                                             stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
-                                             min_profit_perc=-1, trailing_sl_perc=.5)
-        result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
-                                              stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False,
-                                              min_profit_perc=-1, trailing_sl_perc=.5)
-        results = [result_mon, result_tue, result_wed, result_thu, result_fri]
-        valid_results = [result for result in results if result is not None and result["intervals"] > 0]
-        total_profit = sum([result["total_profit"] for result in valid_results])
-        # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
-        # 25 is the lot size / no. of months run
+    result_mon = result_tue = result_wed = result_thu = result_fri = None
+    # result_mon = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 75,
+    #                                      stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
+    #                                      min_profit_perc=-1, trailing_sl_perc=.5)
+    result_tue = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 65,
+                                         stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=True,
+                                         min_profit_perc=-1, trailing_sl_perc=.5)
+    result_wed = analyze_interval_trades(interval_times, start_date, end_date, 1.6, -1, 50,
+                                         stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=True,
+                                         min_profit_perc=-1, trailing_sl_perc=.5)
+    result_thu = analyze_interval_trades(interval_times_thu, start_date, end_date, 1.6, -1, 65,
+                                         stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=True,
+                                         min_profit_perc=-1, trailing_sl_perc=.5)
+    result_fri = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 50,
+                                         stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
+                                         min_profit_perc=-1, trailing_sl_perc=.5)
+    result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
+                                          stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False,
+                                          min_profit_perc=-1, trailing_sl_perc=.5)
+    results = [result_mon, result_tue, result_wed, result_thu, result_fri]
+    valid_results = [result for result in results if result is not None and result["intervals"] > 0]
+    total_profit = sum([result["total_profit"] for result in valid_results])
+    # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
+    # 25 is the lot size / no. of months run
 
-        total_days_in_year = weeks_run * len(valid_results)
-        intervals = valid_results[0]["intervals"]
-        # per_month = (total_profit * quantity) / months_run
-        year_profit = total_profit * lots * lot_quantity
-        yearly_brokerage = brokerage_per_straddle * intervals * total_days_in_year
-        profit_after_brokerage = year_profit - yearly_brokerage
-        yearly_cost_of_buy_leg = buy_legs_cost * lots * lot_quantity * intervals * total_days_in_year
-        profit_after_buy_leg = profit_after_brokerage - 0
+    total_days_in_year = weeks_run * len(valid_results)
+    intervals = valid_results[0]["intervals"]
+    # per_month = (total_profit * quantity) / months_run
+    year_profit = total_profit * lots * lot_quantity
+    yearly_brokerage = brokerage_per_straddle * intervals * total_days_in_year
+    profit_after_brokerage = year_profit - yearly_brokerage
+    yearly_cost_of_buy_leg = buy_legs_cost * lots * lot_quantity * intervals * total_days_in_year
+    profit_after_buy_leg = profit_after_brokerage - 0
 
-        daily_margin_for_sl = average_sl_buy * 2 * lots * lot_quantity * intervals
-        daily_straddle_margin = margin_needed_for_straddle * lots * intervals
-        daily_margin = daily_straddle_margin + daily_margin_for_sl
-        print(
-            f'totalprofit:{year_profit},year profit:{round(year_profit)}, y_brokerage:{yearly_brokerage},y_buy_leg:{yearly_cost_of_buy_leg}, '
-            f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},straddle margin:{daily_straddle_margin},'
-            f'margin sl:{daily_margin_for_sl}  '
-            f'returns :{round(profit_after_buy_leg / daily_margin, 2)}')
+    daily_margin_for_sl = average_sl_buy * 2 * lots * lot_quantity * intervals
+    daily_straddle_margin = margin_needed_for_straddle * lots * intervals
+    daily_margin = daily_straddle_margin + daily_margin_for_sl
+    print(
+        f'totalprofit:{year_profit},year profit:{round(year_profit)}, y_brokerage:{yearly_brokerage},y_buy_leg:{yearly_cost_of_buy_leg}, '
+        f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},straddle margin:{daily_straddle_margin},'
+        f'margin sl:{daily_margin_for_sl}  '
+        f'returns :{round(profit_after_buy_leg / daily_margin, 2)}')
 
-
-# get_all_atm_strikes_by_date("2019-01-01", "2022-04-28")
-# populate_leg_trade_with_premium_data_n_group_it_by_date()
-run_analysis(True)
+# get_all_atm_strikes_by_interval("2019-01-01", "2022-04-28")
+# generate_day_trades_by_interval()
