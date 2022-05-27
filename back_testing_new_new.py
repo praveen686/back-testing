@@ -178,8 +178,8 @@ class LegTrade:
         self.trade_date: str = trade_date
         self.ticker_symbol = ticker_symbol
         self.premium_tickers = []
-        self.valid_prem_tickers = []
-        self.profit_by_time = []
+        self.valid_prem_tickers: Dict[str, float] = {}
+        self.profit_by_time: Dict[str, float] = {}
         self.is_sl_hit = False
         self.sl_hit_index: int = None
         self.india_vix = india_vix
@@ -192,36 +192,69 @@ class LegTrade:
             ticker_premium = self.premium_tickers[minute_index]
             # this is to check whether its not nan
             if ticker_premium == ticker_premium:
-                self.valid_prem_tickers.append(ticker_premium)
-
-        # print("wee", millis() - start_time)
-        # appending profit to the profit tracker, it will be 0 if no valid premium present so far.
-        if len(self.valid_prem_tickers) == 0:
-            self.profit_by_time.append(0)
-        else:
-            curr_premium = float(self.valid_prem_tickers[-1])
-            if self.is_sl_hit is False:
-                curr_profit = round(float(self.valid_prem_tickers[0]) - curr_premium, 2)
-                # check for sl only if its enabled
-                if sl != -1:
-                    # if curr_profit < (sl * float(self.valid_prem_tickers[0])) * -1:
-                    if curr_premium > (sl * float(self.valid_prem_tickers[0])):
-                        self.is_sl_hit = True
-                        self.sl_hit_index = minute_index
+                self.valid_prem_tickers[minute_index] = float(ticker_premium)
             else:
-                # getting the previous profit to append in case sl is met already
-                curr_profit = self.profit_by_time[-1]
-            # this tracks the profit, profit till that minute
-            self.profit_by_time.append(curr_profit)
-        # print("wee", millis() - start_time)
+                # falling back to previous premium if current premium is null given its non zero size
+                if len(self.valid_prem_tickers) > 0:
+                    last_key_present = list(self.valid_prem_tickers.keys())[-1]
+                    self.valid_prem_tickers[minute_index] = self.valid_prem_tickers[last_key_present]
+                # else:
+                #     self.valid_prem_tickers[minute_index] = 0
+
+            if len(self.valid_prem_tickers) > 0:
+                premium_keys = list(self.valid_prem_tickers.keys())
+                start_premium = self.valid_prem_tickers[premium_keys[0]]
+                curr_premium = self.valid_prem_tickers[premium_keys[-1]]
+                if self.is_sl_hit is False:
+                    curr_profit = round(start_premium - curr_premium, 2)
+                    # check for sl only if its enabled
+                    if sl != -1:
+                        # if curr_profit < (sl * float(self.valid_prem_tickers[0])) * -1:
+                        if curr_premium > (sl * start_premium):
+                            self.is_sl_hit = True
+                            self.sl_hit_index = minute_index
+                else:
+                    # getting the previous profit to append in case sl is met already
+                    curr_profit = self.profit_by_time[list(self.profit_by_time.keys())[-1]]
+                self.profit_by_time[minute_index] = curr_profit
+            else:
+                self.profit_by_time[minute_index]=0
+                # raise Exception("there should be entries")
+
+        # # print("wee", millis() - start_time)
+        # # appending profit to the profit tracker, it will be 0 if no valid premium present so far.
+        # if len(self.valid_prem_tickers) == 0:
+        #     self.profit_by_time.append(0)
+        # else:
+        #     curr_premium = float(self.valid_prem_tickers[-1])
+        #     if self.is_sl_hit is False:
+        #         curr_profit = round(float(self.valid_prem_tickers[0]) - curr_premium, 2)
+        #         # check for sl only if its enabled
+        #         if sl != -1:
+        #             # if curr_profit < (sl * float(self.valid_prem_tickers[0])) * -1:
+        #             if curr_premium > (sl * float(self.valid_prem_tickers[0])):
+        #                 self.is_sl_hit = True
+        #                 self.sl_hit_index = minute_index
+        #     else:
+        #         # getting the previous profit to append in case sl is met already
+        #         curr_profit = self.profit_by_time[-1]
+        #     # this tracks the profit, profit till that minute
+        #     self.profit_by_time.append(curr_profit)
+        # # print("wee", millis() - start_time)
 
     def set_sl(self, sl_status: bool):
         self.is_sl_hit = sl_status
 
     # get the profit upto the minute passed
-    def get_profit(self, minute_index: int):
-        profit = self.profit_by_time[minute_index]
-        return profit
+    def get_profit(self, minute_index: int, start_index: int):
+        profit_keys = list(self.profit_by_time.keys())
+        profit_key = minute_index if minute_index != -1 else profit_keys[-1]
+        if minute_index >= start_index and profit_key not in profit_keys:
+            raise Exception(f'minute index:{minute_index} should be present!!!')
+        # if accessed before trading as started, this could raise 'KeyError' so returning 0
+        return 0 if profit_key not in profit_keys else self.profit_by_time[profit_key]
+        # return self.profit_by_time[profit_key]
+        # return profit
         # print(self.profit_by_time)
 
 
@@ -243,25 +276,28 @@ class LegPair:
         self.target_min_profit_perc_reached = False
         # this will be only set once target profit has reached.
         self.curr_trailing_sl_profit = -1
-        self.pair_profit_tracker = []
+        # self.pair_profit_tracker = []
         self.is_pair_sl_set = False
 
     def walk_leg(self, minute_index, sl: float, is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float):
         self.pe_leg.walk(minute_index, self.start_min_index, 1 if self.pe_leg.is_c2c_set else sl)
         self.ce_leg.walk(minute_index, self.start_min_index, 1 if self.ce_leg.is_c2c_set else sl)
-        profit_so_far = self.pe_leg.get_profit(minute_index) + self.ce_leg.get_profit(minute_index)
+        profit_so_far = self.pe_leg.get_profit(minute_index, self.start_min_index) + self.ce_leg.get_profit(
+            minute_index, self.start_min_index)
         start_premium = \
             sorted([self.pe_leg.premium_tickers[0], self.ce_leg.premium_tickers[0]], key=lambda x: float(x))[0]
-        if min_profit_perc != -1 and profit_so_far >= min_profit_perc * float(start_premium):
-            self.target_min_profit_perc_reached = True
-            self.curr_trailing_sl_profit = profit_so_far * trailing_sl_perc
-        self.pair_profit_tracker.append(profit_so_far)
-        # idea is to check whether we have reached target perc of the smallest premium in the leg
-        if self.target_min_profit_perc_reached:
-            # after you have reached min profit and gone beyond, if it goes less than trailing sl profit exit
-            if profit_so_far < self.curr_trailing_sl_profit and not self.is_pair_sl_set:
-                self.set_sl(True)
-                self.is_pair_sl_set = True
+        # no need to check for min target reached if its been already checked in the prev cycle.
+        if self.target_min_profit_perc_reached is False:
+            if min_profit_perc != -1 and profit_so_far >= min_profit_perc * float(start_premium):
+                self.target_min_profit_perc_reached = True
+                self.curr_trailing_sl_profit = profit_so_far * trailing_sl_perc
+            # self.pair_profit_tracker.append(profit_so_far)
+            # idea is to check whether we have reached target perc of the smallest premium in the leg
+            if self.target_min_profit_perc_reached:
+                # after you have reached min profit and gone beyond, if it goes less than trailing sl profit exit
+                if profit_so_far < self.curr_trailing_sl_profit and not self.is_pair_sl_set:
+                    self.set_sl(True)
+                    self.is_pair_sl_set = True
         if is_c2c_enabled:
             self.set_c2c(self.pe_leg, self.ce_leg)
             self.set_c2c(self.ce_leg, self.pe_leg)
@@ -277,7 +313,8 @@ class LegPair:
         self.ce_leg.set_sl(sl_status)
 
     def get_profit(self, minute_index=-1):
-        return self.pe_leg.get_profit(minute_index) + self.ce_leg.get_profit(minute_index)
+        return self.pe_leg.get_profit(minute_index, self.start_min_index) + self.ce_leg.get_profit(minute_index,
+                                                                                                   self.start_min_index)
 
 
 class NewDayTrade:
