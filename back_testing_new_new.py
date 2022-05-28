@@ -178,7 +178,7 @@ class LegTrade:
         self.trade_date: str = trade_date
         self.ticker_symbol = ticker_symbol
         self.premium_tickers = []
-        self.valid_prem_tickers: Dict[str, float] = {}
+        self.valid_prem_tickers: List[float] = []
         self.profit_by_time: Dict[str, float] = {}
         self.is_sl_hit = False
         self.sl_hit_index: int = None
@@ -192,19 +192,20 @@ class LegTrade:
             ticker_premium = self.premium_tickers[minute_index]
             # this is to check whether its not nan
             if ticker_premium == ticker_premium:
-                self.valid_prem_tickers[minute_index] = float(ticker_premium)
+                self.valid_prem_tickers.append(float(ticker_premium))
             else:
                 # falling back to previous premium if current premium is null given its non zero size
                 if len(self.valid_prem_tickers) > 0:
-                    last_key_present = list(self.valid_prem_tickers.keys())[-1]
-                    self.valid_prem_tickers[minute_index] = self.valid_prem_tickers[last_key_present]
+                    self.valid_prem_tickers.append(self.valid_prem_tickers[-1])
+                    # last_key_present = list(self.valid_prem_tickers.keys())[-1]
+                    # self.valid_prem_tickers[minute_index] = self.valid_prem_tickers[last_key_present]
                 # else:
                 #     self.valid_prem_tickers[minute_index] = 0
 
             if len(self.valid_prem_tickers) > 0:
-                premium_keys = list(self.valid_prem_tickers.keys())
-                start_premium = self.valid_prem_tickers[premium_keys[0]]
-                curr_premium = self.valid_prem_tickers[premium_keys[-1]]
+                # premium_keys = list(self.valid_prem_tickers.keys())
+                start_premium = self.valid_prem_tickers[0]
+                curr_premium = self.valid_prem_tickers[-1]
                 if self.is_sl_hit is False:
                     curr_profit = round(start_premium - curr_premium, 2)
                     # check for sl only if its enabled
@@ -218,7 +219,7 @@ class LegTrade:
                     curr_profit = self.profit_by_time[list(self.profit_by_time.keys())[-1]]
                 self.profit_by_time[minute_index] = curr_profit
             else:
-                self.profit_by_time[minute_index]=0
+                self.profit_by_time[minute_index] = 0
                 # raise Exception("there should be entries")
 
         # # print("wee", millis() - start_time)
@@ -287,17 +288,20 @@ class LegPair:
         start_premium = \
             sorted([self.pe_leg.premium_tickers[0], self.ce_leg.premium_tickers[0]], key=lambda x: float(x))[0]
         # no need to check for min target reached if its been already checked in the prev cycle.
-        if self.target_min_profit_perc_reached is False:
-            if min_profit_perc != -1 and profit_so_far >= min_profit_perc * float(start_premium):
-                self.target_min_profit_perc_reached = True
-                self.curr_trailing_sl_profit = profit_so_far * trailing_sl_perc
-            # self.pair_profit_tracker.append(profit_so_far)
-            # idea is to check whether we have reached target perc of the smallest premium in the leg
-            if self.target_min_profit_perc_reached:
-                # after you have reached min profit and gone beyond, if it goes less than trailing sl profit exit
-                if profit_so_far < self.curr_trailing_sl_profit and not self.is_pair_sl_set:
-                    self.set_sl(True)
-                    self.is_pair_sl_set = True
+        if min_profit_perc != -1:
+            if self.target_min_profit_perc_reached is False:
+                if profit_so_far >= min_profit_perc * float(start_premium):
+                    self.target_min_profit_perc_reached = True
+                    self.curr_trailing_sl_profit = profit_so_far * trailing_sl_perc
+                # self.pair_profit_tracker.append(profit_so_far)
+                # idea is to check whether we have reached target perc of the smallest premium in the leg
+                if self.target_min_profit_perc_reached:
+                    # after you have reached min profit and gone beyond, if it goes less than trailing sl profit exit
+                    if profit_so_far < self.curr_trailing_sl_profit and not self.is_pair_sl_set:
+                        self.set_sl(True)
+                        self.is_pair_sl_set = True
+        # if sl!=-1:
+
         if is_c2c_enabled:
             self.set_c2c(self.pe_leg, self.ce_leg)
             self.set_c2c(self.ce_leg, self.pe_leg)
