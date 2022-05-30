@@ -46,3 +46,10 @@ def get_date_in_str(date, date_format=constants.DATE_FORMAT):
 def get_date_from_str(date, date_format=constants.DATE_FORMAT):
     date = datetime.datetime.strptime(date, date_format)
     return date
+
+
+# this is used to create a new straddle when desired condition is hit.
+def get_formatted_time_by_adding_delta_to_base(base_min_str: str, delta: int):
+    input_time = datetime.datetime.strptime(base_min_str, constants.HOUR_MIN_SEC_TIME_FORMAT)
+    new_time = input_time + datetime.timedelta(minutes=delta)
+    return new_time.strftime(constants.HOUR_MIN_SEC_TIME_FORMAT)

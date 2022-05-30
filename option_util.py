@@ -156,6 +156,9 @@ def get_ticker_data_by_expiry_and_strike(strike_price, expiry_date, option_type,
 
 def get_nearest_expiry(trade_date_str, expiry_df):
     filtered = expiry_df.loc[expiry_df['expiry'] >= trade_date_str]
+    print(len(filtered['expiry'].values))
+    if len(filtered['expiry'].values) == 0:
+        print("werwwerwer", trade_date_str)
     next_expiry_str = filtered['expiry'].values[0]
     # next_expiry = next_weekday(date, 3)
     return datetime.datetime.strptime(next_expiry_str, '%Y-%m-%d')

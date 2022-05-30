@@ -28,3 +28,6 @@ grouped_leg_trade
 /day_profit_df
 /atm_strikes_by_interval
 /day_trades_all_minute
+/leg_trades_by_date_strike_n_offset
+/strike_ticker_by_minute
+/option_strike_minute_ticker_df
