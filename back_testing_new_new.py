@@ -12,7 +12,7 @@ from option_util import get_minute_list, millis, load_nifty_min_data, load_india
     get_ticker_data_by_expiry_and_strike
 from store_ticker_data_from_zerodha import store_india_vix_day_data_from_zerodha
 from util import get_pickle_data, write_pickle_data, get_date_from_str, get_date_in_str, \
-    get_formatted_time_by_adding_delta_to_base
+    get_formatted_time_by_adding_delta_to_base, get_diff_in_days
 
 vix_data_dic = get_pickle_data('india-vix-day-candle')
 day_keys = list(vix_data_dic.keys())
@@ -189,7 +189,7 @@ class LegTrade:
         self.is_c2c_set = False
         self.sl_hit_premium = -1
 
-    def walk(self, minute_index, start_index, sl: float):
+    def walk(self, minute_index, start_index, sl: float, transaction_type: str):
         start_time = millis()
         # if the interval time hasnt reached.
         if minute_index >= start_index:
@@ -221,8 +221,10 @@ class LegTrade:
                             self.sl_hit_premium = curr_premium
                 else:
                     # getting the previous profit to append in case sl is met already
+                    if len(self.profit_by_time) == 0:
+                        self.profit_by_time[minute_index] = 0
                     curr_profit = self.profit_by_time[list(self.profit_by_time.keys())[-1]]
-                self.profit_by_time[minute_index] = curr_profit
+                self.profit_by_time[minute_index] = curr_profit * (-1 if transaction_type == "BUY" else 1)
             else:
                 self.profit_by_time[minute_index] = 0
                 # raise Exception("there should be entries")
@@ -268,10 +270,10 @@ class LegPair:
         self.adjustment_leg: LegPair = None
 
     def walk_leg(self, minute_index, sl: float, is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float,
-                 add_adj_leg: bool):
+                 transaction_type: str):
 
-        self.pe_leg.walk(minute_index, self.start_min_index, 1 if self.pe_leg.is_c2c_set else sl)
-        self.ce_leg.walk(minute_index, self.start_min_index, 1 if self.ce_leg.is_c2c_set else sl)
+        self.pe_leg.walk(minute_index, self.start_min_index, 1 if self.pe_leg.is_c2c_set else sl, transaction_type)
+        self.ce_leg.walk(minute_index, self.start_min_index, 1 if self.ce_leg.is_c2c_set else sl, transaction_type)
         # if add_adj_leg:
         #     if self.pe_leg.is_sl_hit and
         profit_so_far = self.pe_leg.get_profit(minute_index, self.start_min_index) + self.ce_leg.get_profit(
@@ -332,15 +334,19 @@ class DayTrade:
         self.is_target_profit_reached = False
         # after reaching above profit, if falls below trailing sl, the process will be stopped.
         self.is_trailing_sl_hit = False
+        #     going with trailing sl which is decided dynamically
+        self.trailing_profit = -1
 
     # setting the pairs and start minute that are applicable for selected time intervals
     def set_leg_pairs_by_straddle_times(self, straddle_times: List[str]):
         self.filtered_leg_pairs_by_time = []
         for straddle_time in straddle_times:
+            pe_time = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[0])}'
             pe_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            straddle_time in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
+                            pe_time in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
+            ce_time = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[1])}'
             ce_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            straddle_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
+                            ce_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
 
             if len(pe_leg_trade) > 0 and len(ce_leg_trade) > 0:
                 leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
@@ -369,11 +375,12 @@ class DayTrade:
             return leg_pair
         return None
 
-    def walk(self, minute_index, sl: float, target_profit: int, trailing_sl: int, stop_at_target: int,
-             is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float, add_adj_leg: bool):
+    def walk(self, minute_index, sl: float, target_profit: int, trailing_profit_perc: float, stop_at_target: int,
+             is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float, add_adj_leg: bool,
+             transaction_type: str):
         day_profit_so_far = 0
         for leg_pair in self.filtered_leg_pairs_by_time:
-            leg_pair.walk_leg(minute_index, sl, is_c2c_enabled, min_profit_perc, trailing_sl_perc, add_adj_leg)
+            leg_pair.walk_leg(minute_index, sl, is_c2c_enabled, min_profit_perc, trailing_sl_perc, transaction_type)
             day_profit_so_far = day_profit_so_far + leg_pair.get_profit(minute_index)
             # only do the adjustment for the original leg, skip the leg the was added for the adjustment
             if add_adj_leg and leg_pair.pair_type == constants.LEG_PAIR_TYPE_ORIGINAL and leg_pair.adjustment_leg is None:
@@ -409,12 +416,24 @@ class DayTrade:
         if target_profit != -1:
             # this is the case target profit has reached but the profit went below trailing profit
             if self.is_target_profit_reached:
-                if day_profit_so_far <= trailing_sl:
+                if day_profit_so_far <= self.trailing_profit:
                     # print("reached..*************************")
                     self.set_sl_for_all(True)
                     self.is_trailing_sl_hit = False
+                    print("reached trailing profit", self.trade_date_str, day_profit_so_far, self.trailing_profit,
+                          minute_index)
             if day_profit_so_far > target_profit:
                 self.is_target_profit_reached = True
+                if self.trailing_profit == -1:
+                    self.trailing_profit = day_profit_so_far * trailing_profit_perc
+                else:
+                    new_trailing_profit = day_profit_so_far * trailing_profit_perc
+                    if new_trailing_profit > self.trailing_profit:
+                        self.trailing_profit = new_trailing_profit
+                        print("reached trailing profit set", self.trade_date_str, day_profit_so_far,
+                              self.trailing_profit,
+                              minute_index)
+
         if stop_at_target != -1 and day_profit_so_far > stop_at_target:
             self.set_sl_for_all(True)
             self.is_stop_at_target_profit_reached = True
@@ -442,16 +461,24 @@ def get_start_minute_index(start_time_str: str):
     return start_min_index
 
 
+day_trades: List[DayTrade] = None
+
+
 def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date: str, regular_sl_perc: float,
-                            target_profit: int, trailing_sl: int, stop_at_target: int, allowed_week_day: int,
+                            target_profit: int, trailing_profit_perc: float, stop_at_target: int, allowed_week_day: int,
                             is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float, add_adj_leg: bool,
-                            start_time, end_time, analyzed_date_str: str):
+                            start_time, end_time, analyzed_date_str: str, transaction_type: str):
+    if len(straddle_times) == 0:
+        return
     nifty_min_data_dic = load_nifty_min_data("BANKNIFTY")
     # analyze_profit("2019-02-18", "2019-02-19", sl=.6, target_profit=-1, day_trailing_sl=20, week_day=-1)
     analyze_start_time = millis()
-    day_trades: List[DayTrade] = get_pickle_data("day_trades_all_minute")
-    # 2019-10-27
-    day_trades = [day_trade for day_trade in day_trades if start_date <= day_trade.trade_date_str <= end_date]
+    global day_trades
+    if day_trades is None:
+        day_trades = get_pickle_data("day_trades_all_minute")
+    # this is not needed same day is not traded again
+    day_trades = [day_trade for day_trade in day_trades if
+                  start_date <= day_trade.trade_date_str <= end_date]
     # day_trades = [day_trade for day_trade in day_trades if '2019-10-27' <= day_trade.trade_date_str <= "2019-10-27"]
     # filter(lambda x: '2019-02-18' <= x.trade_date_str <= "2022-02-14", day_trades))
     total_profit = 0
@@ -470,8 +497,9 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
         # only work in LegPairs whose interval matches the one that is present in the parameter
         day_trade.set_leg_pairs_by_straddle_times(straddle_times)
         for minute_index in range(len(trading_minute_list)):
-            day_trade.walk(minute_index, regular_sl_perc, target_profit, trailing_sl, stop_at_target, is_c2c_enabled,
-                           min_profit_perc, trailing_sl_perc, add_adj_leg)
+            day_trade.walk(minute_index, regular_sl_perc, target_profit, trailing_profit_perc, stop_at_target,
+                           is_c2c_enabled,
+                           min_profit_perc, trailing_sl_perc, add_adj_leg, transaction_type)
         day_profit = round(day_trade.get_profit(), 2)
         print(day_trade.trade_date_str, day_trade.profit_tracker[-1])
         if day_trade.trade_date_str == analyzed_date_str:
@@ -504,14 +532,20 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
             analysis_data_df.to_csv("analysis_data.csv")
 
         total_profit = total_profit + day_profit
-        # cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
-        cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
-        if day_trade.filtered_leg_pairs_by_time[0].pe_leg.is_sl_hit and day_trade.filtered_leg_pairs_by_time[
-            0].ce_leg.is_sl_hit:
-            print("both sl hit")
-        profit_tracker.append(
-            {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached(),
-             "week_day": trade_week_day})
+        if len(day_trade.filtered_leg_pairs_by_time) > 0:
+            # cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
+            cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
+            for index, filtered_pair in enumerate(day_trade.filtered_leg_pairs_by_time):
+                if filtered_pair.ce_leg.is_sl_hit:
+                    print(f'sl>>hit>>{filtered_pair.ce_leg.option_type} index:{index}')
+                if filtered_pair.pe_leg.is_sl_hit:
+                    print(f'sl>>hit>>{filtered_pair.pe_leg.option_type} index:{index}')
+            if day_trade.filtered_leg_pairs_by_time[0].pe_leg.is_sl_hit and day_trade.filtered_leg_pairs_by_time[
+                0].ce_leg.is_sl_hit:
+                print("both sl hit")
+            profit_tracker.append(
+                {"profit": day_profit, "date": day_trade.trade_date_str, "max": day_trade.max_profit_reached(),
+                 "week_day": trade_week_day})
 
     print(profit_tracker)
     day_profit_df = pd.DataFrame(profit_tracker, [i for i in range(len(profit_tracker))])
@@ -532,9 +566,12 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
 
     win_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] > 0]
     loss_days = [day_profit["profit"] for day_profit in profit_tracker if day_profit["profit"] < 0]
-    max_days = [day_profit["max"] for day_profit in profit_tracker if day_profit["max"] > stop_at_target]
+    days_gt_tr_pft = [day_profit["max"] for day_profit in profit_tracker if day_profit["max"] > target_profit]
+    days_gt_sat_pft = [day_profit["max"] for day_profit in profit_tracker if day_profit["max"] > stop_at_target]
 
-    result['days>stop_at_profit'] = len(max_days)
+    result['days>target_profit'] = len(days_gt_tr_pft)
+    result['days>stop_at_profit'] = len(days_gt_sat_pft)
+
     result["intervals"] = len(straddle_times)
     # loss_days_with_pos_profit = [day_profit for day_profit in loss_days if max(day_profit.profit_list) > 20]
     # hello.to_clipboard()
@@ -549,6 +586,13 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
         mean_loss = 0
     w_l_days_ratio = 'full' if len(loss_days) == 0 else round(len(win_days) / len(loss_days), 2)
     r_r_ratio = 'NA' if mean_loss == 0 else round(mean_profit / mean_loss, 2)
+    result["win_days"] = len(win_days)
+    result["loss_days"] = len(loss_days)
+    result["mean_profit"] = round(mean_profit, 2)
+    result["mean_loss"] = round(mean_loss, 2)
+    result["r_r_ratio"] = r_r_ratio
+    result["allowed_week_day"] = allowed_week_day
+
     print(
         f'week day >>> {allowed_week_day} profit:{result["total_profit"]}  win:{len(win_days)},loss:{len(loss_days)},ratio:{w_l_days_ratio}, win mean:{round(mean_profit, 2)}'
         f',mean loss:{round(mean_loss, 2)} ,rr:{r_r_ratio} result:{result}')
@@ -581,70 +625,88 @@ def generate_ticker_symbol(expiry_date, strike_price, option_type):
 def run_analysis(status: bool):
     # only for the current year.
     if status:
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31', True
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31', True
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31', True
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 3, 52, 11, 116000, 480, '2021-01-01', '2022-02-11', False
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 1, 52, 11, 116000, 480, '2019-01-01', '2022-04-28', True
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False
-        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 16, 11, 116000, 480, "2021-11-01", "2021-11-01", False, "2021-11-01"
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 4, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-03-10'
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 6, 11, 116000, 480, "2022-01-18", "2022-01-18"
+
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31', False, '2022-03-10'
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31', False, '2022-03-10'
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31', False, '2022-03-10'
+        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-03-10', "SELL"
+
         brokerage_per_straddle = 250
         lot_quantity = 25
-        # interval_times = ["1040", "1100", "1120", "1140"]
-        # interval_times = ["0940", "1000", "1020", "1040"]
-        interval_times = ["09:40:00|0", "10:40:00|0", "11:40:00|0"]
-        interval_times_thu = ["09:20:00|0", "10:40:00|0", "11:40:00|0"]
-
-        # interval_times = ["10:40:00|0"]
-        # interval_times_thu = ["10:40:00|0"]
-        # interval_times_fri = ["0940", "1000", "1020", "1040"]
 
         result_mon = result_tue = result_wed = result_thu = result_fri = None
-        result_mon = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 75,
+        # "10:40:00|0,0", "12:40:00|0,0"
+        result_mon = analyze_interval_trades([], start_date, end_date, 1.2, -1, .8,
                                              stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str)
-        # result_tue = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 65,
-        #                                      stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False,
-        #                                      min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
-        #                                      start_time="09:15:00", end_time="14:30:00")
-        # result_wed = analyze_interval_trades(interval_times, start_date, end_date, 1.6, -1, 50,
-        #                                      stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False,
-        #                                      min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
-        #                                      start_time="09:15:00", end_time="14:30:00")
-        # result_thu = analyze_interval_trades(interval_times_thu, start_date, end_date, 1.6, -1, 65,
-        #                                      stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
-        #                                      min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
-        #                                      start_time="09:15:00", end_time="14:30:00")
-        # result_fri = analyze_interval_trades(interval_times, start_date, end_date, 1.2, -1, 50,
-        #                                      stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
-        #                                      min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
-        #                                      start_time="09:15:00", end_time="14:30:00")
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+        # "10:40:00|0,0", "11:40:00|0,0"
+        result_tue = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.2, -1, .6,
+                                             stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False,
+                                             min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                             start_time="09:15:00", end_time="14:30:00",
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+        # "09:40:00|0,0", "10:40:00|0,0"
+        result_wed = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.2, -1, .6,
+                                             stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False,
+                                             min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                             start_time="09:15:00", end_time="14:30:00",
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+        # "09:40:00|0,0", "10:40:00|0,0" "10:40:00|0,0", "12:40:00|0,0"
+        result_thu = analyze_interval_trades(["09:20:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.6, 140, .6,
+                                             stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
+                                             min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
+                                             start_time="09:15:00", end_time="14:30:00",
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+        # "10:40:00|0,0", "11:40:00|0,0"
+        result_fri = analyze_interval_trades([], start_date, end_date, 1.2, 50, .6,
+                                             stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
+                                             min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                             start_time="09:15:00", end_time="14:30:00",
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
         # result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
         #                                       stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False,
         #                                       min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg)
         results = [result_mon, result_tue, result_wed, result_thu, result_fri]
         valid_results = [result for result in results if result is not None and result["intervals"] > 0]
-        total_profit = sum([result["total_profit"] for result in valid_results])
+        total_profit = 0
         # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
         # 25 is the lot size / no. of months run
 
-        total_days_in_year = weeks_run * len(valid_results)
-        intervals = valid_results[0]["intervals"]
-        # per_month = (total_profit * quantity) / months_run
-        year_profit = total_profit * lots * lot_quantity
-        yearly_brokerage = brokerage_per_straddle * intervals * total_days_in_year
-        profit_after_brokerage = year_profit - yearly_brokerage
-        yearly_cost_of_buy_leg = buy_legs_cost * lots * lot_quantity * intervals * total_days_in_year
-        profit_after_buy_leg = profit_after_brokerage - 0
+        no_of_weeks_run = round(get_diff_in_days(start_date, end_date) / 7)
+        total_profit_after_brokerage = 0
+        first_valid_intervals = valid_results[0]["intervals"]
+        for valid_result in valid_results:
+            week_intervals = valid_result["intervals"]
+            profit_per_unit = valid_result["total_profit"]
+            weekday_lot_profit = profit_per_unit * lots * lot_quantity
+            weekday_brokerage = brokerage_per_straddle * week_intervals * no_of_weeks_run
+            weekday_profit_after_brokerage = weekday_lot_profit - weekday_brokerage
+            print(
+                f'day:{valid_result["allowed_week_day"]} ppu:{profit_per_unit} win_d:{valid_result["win_days"]} '
+                f'loss_d:{valid_result["loss_days"]} mean_p:{valid_result["mean_profit"]} mean_l:{valid_result["mean_loss"]} rr:{valid_result["r_r_ratio"]}'
+                f' lot_profit:{weekday_lot_profit}, brokerage:{weekday_brokerage}, net profit:{weekday_profit_after_brokerage} '
+                f' >gt_t_p:{valid_result["days>target_profit"]} >gt_s_a_t:{valid_result["days>stop_at_profit"]}')
+            total_profit_after_brokerage = total_profit_after_brokerage + weekday_profit_after_brokerage
 
-        daily_margin_for_sl = average_sl_buy * 2 * lots * lot_quantity * intervals
-        daily_straddle_margin = margin_needed_for_straddle * lots * intervals
+        # intervals = valid_results[0]["intervals"]
+        # # per_month = (total_profit * quantity) / months_run
+        # year_profit = total_profit * lots * lot_quantity
+        # yearly_brokerage = brokerage_per_straddle * intervals * total_days_in_year
+        # profit_after_brokerage = year_profit - yearly_brokerage
+        # yearly_cost_of_buy_leg = buy_legs_cost * lots * lot_quantity * intervals * total_days_in_year
+        # profit_after_buy_leg = profit_after_brokerage - 0
+        max_interval_in_week = max([valid_result["intervals"] for valid_result in valid_results])
+        print("mx interval", max_interval_in_week)
+        daily_margin_for_sl = average_sl_buy * 2 * lots * lot_quantity * max_interval_in_week
+        daily_straddle_margin = margin_needed_for_straddle * lots * max_interval_in_week
         daily_margin = daily_straddle_margin + daily_margin_for_sl
         print(
-            f'totalprofit:{year_profit},year profit:{round(year_profit)}, y_brokerage:{yearly_brokerage},y_buy_leg:{yearly_cost_of_buy_leg}, '
-            f'after brokerage:{round(profit_after_brokerage)},after buy leg:{round(profit_after_buy_leg)},straddle margin:{daily_straddle_margin},'
+            f'after brokerage:{round(total_profit_after_brokerage)},,straddle margin:{daily_straddle_margin},'
             f'margin sl:{daily_margin_for_sl}  '
-            f'returns :{round(profit_after_buy_leg / daily_margin, 2)}')
+            f'returns :{round(total_profit_after_brokerage / daily_margin, 2)}')

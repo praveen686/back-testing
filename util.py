@@ -27,6 +27,13 @@ def get_diff_in_mins(start, end):
     return diff_in_mins
 
 
+def get_diff_in_days(start_date, end_date):
+    start_time = datetime.datetime.strptime(start_date, constants.DATE_FORMAT)
+    end_time = datetime.datetime.strptime(end_date, constants.DATE_FORMAT)
+    diff_in_days = (end_time - start_time).total_seconds() / (60 * 60 * 24)
+    return diff_in_days
+
+
 def get_today_date_in_str():
     current_time = datetime.datetime.now()
     today_date_str = current_time.strftime(constants.DATE_FORMAT)

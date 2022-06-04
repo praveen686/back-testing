@@ -228,15 +228,14 @@ def store_all_infra_data(get_option_files: bool, store_vix: bool, store_nifty_mi
     if store_nifty_min_candle:
         # get the spot price for every minute
         store_bnifty_min_candle_from_zerodha(f'b-nifty-minute-candle', 2019, 2023)
+    if populate_strike_premium:
+        # populating a dataframe with premium data for all the b nifty ticker which has been atm strike at some point. Here
+        populate_every_minute_df("2019-02-18", "2022-04-28")
     if store_strike_symbols:
         # get all the atm strike (34000) for every day and for every minute combination. Diff from spot price is, it will
         # be rounded, also will be grouped by price to avoid duplicate strike price for the same day
         get_all_b_nifty_atm_strikes_by_min('day_strike_index_list', 'leg_trades_by_date_strike_n_offset', "2022-04-28")
-    if populate_strike_premium:
-        # populating a dataframe with premium data for all the b nifty ticker which has been atm strike at some point. Here
-        # please note that I am not getting all the ticker but just the ones that will help me with 'straddle' analysis
-        populate_every_minute_df("2019-02-18", "2022-04-28")
 
 
-store_all_infra_data(get_option_files=False, store_vix=False, store_nifty_min_candle=False, store_strike_symbols=False,
-                     populate_strike_premium=True)
+store_all_infra_data(get_option_files=False, store_vix=False, store_nifty_min_candle=False,
+                     populate_strike_premium=False, store_strike_symbols=True )
