@@ -211,11 +211,12 @@ class LegTrade:
                 start_premium = self.valid_prem_tickers[0]
                 curr_premium = self.valid_prem_tickers[-1]
                 if self.is_sl_hit is False:
-                    curr_profit = round(start_premium - curr_premium, 2)
+                    curr_profit = round(start_premium - curr_premium, 2) * (-1 if transaction_type == "BUY" else 1)
                     # check for sl only if its enabled
                     if sl != -1:
                         # if curr_profit < (sl * float(self.valid_prem_tickers[0])) * -1:
-                        if curr_premium > (sl * start_premium):
+                        if ((transaction_type == "SELL" and curr_premium > (sl * start_premium)) or (
+                                transaction_type == "BUY" and curr_premium < (sl * start_premium))):
                             self.is_sl_hit = True
                             self.sl_hit_index = minute_index
                             self.sl_hit_premium = curr_premium
@@ -224,7 +225,7 @@ class LegTrade:
                     if len(self.profit_by_time) == 0:
                         self.profit_by_time[minute_index] = 0
                     curr_profit = self.profit_by_time[list(self.profit_by_time.keys())[-1]]
-                self.profit_by_time[minute_index] = curr_profit * (-1 if transaction_type == "BUY" else 1)
+                self.profit_by_time[minute_index] = curr_profit
             else:
                 self.profit_by_time[minute_index] = 0
                 # raise Exception("there should be entries")
@@ -422,8 +423,11 @@ class DayTrade:
                     self.is_trailing_sl_hit = False
                     print("reached trailing profit", self.trade_date_str, day_profit_so_far, self.trailing_profit,
                           minute_index)
+            # if day_profit_so_far < target_profit * -1:
+            #     self.set_sl_for_all(True)
             if day_profit_so_far > target_profit:
                 self.is_target_profit_reached = True
+                # first time trailing profit will be -1 so set it blindly
                 if self.trailing_profit == -1:
                     self.trailing_profit = day_profit_so_far * trailing_profit_perc
                 else:
@@ -467,7 +471,7 @@ day_trades: List[DayTrade] = None
 def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date: str, regular_sl_perc: float,
                             target_profit: int, trailing_profit_perc: float, stop_at_target: int, allowed_week_day: int,
                             is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float, add_adj_leg: bool,
-                            start_time, end_time, analyzed_date_str: str, transaction_type: str):
+                            start_time, end_time, analyzed_date_str: str, transaction_type: str, india_vix_fn):
     if len(straddle_times) == 0:
         return
     nifty_min_data_dic = load_nifty_min_data("BANKNIFTY")
@@ -491,7 +495,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
         trade_week_day = day_trade_date.weekday()
         if allowed_week_day != -1 and trade_week_day != allowed_week_day:
             continue
-        if day_trade.india_vix > 50:
+        if india_vix_fn(day_trade.india_vix) is False:
             continue
         # start_time = millis()
         # only work in LegPairs whose interval matches the one that is present in the parameter
@@ -548,6 +552,8 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
                  "week_day": trade_week_day})
 
     print(profit_tracker)
+    if len(profit_tracker) == 0:
+        return None
     day_profit_df = pd.DataFrame(profit_tracker, [i for i in range(len(profit_tracker))])
     write_pickle_data('day_profit_df', day_profit_df)
     # print(total_profit, (millis() - analyze_start_time))
@@ -592,6 +598,7 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     result["mean_loss"] = round(mean_loss, 2)
     result["r_r_ratio"] = r_r_ratio
     result["allowed_week_day"] = allowed_week_day
+    result["profit_tracker"] = profit_tracker
 
     print(
         f'week day >>> {allowed_week_day} profit:{result["total_profit"]}  win:{len(win_days)},loss:{len(loss_days)},ratio:{w_l_days_ratio}, win mean:{round(mean_profit, 2)}'
@@ -630,62 +637,109 @@ def run_analysis(status: bool):
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 4, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-03-10'
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date = 3, 6, 11, 116000, 480, "2022-01-18", "2022-01-18"
 
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31', False, '2022-03-10'
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31', False, '2022-03-10'
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31', False, '2022-03-10'
-        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-03-10', "SELL"
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 7, 100000, 400, '2019-01-01', '2019-12-31', False, '2022-03-10', "SELL"
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31', False, '2022-03-10', "SELL"
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31', False, '2022-03-10', "SELL"
+        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-01-07', "SELL"
 
         brokerage_per_straddle = 250
         lot_quantity = 25
 
         result_mon = result_tue = result_wed = result_thu = result_fri = None
         # "10:40:00|0,0", "12:40:00|0,0"
-        result_mon = analyze_interval_trades([], start_date, end_date, 1.2, -1, .8,
+        result_mon = analyze_interval_trades(["09:40:00|0,0", "09:40:00|0,0"], start_date, end_date,
+                                             1.2, 60, .5,
                                              stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
-        # "10:40:00|0,0", "11:40:00|0,0"
-        result_tue = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.2, -1, .6,
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                             india_vix_fn=lambda x: x < 20)
+        result_mon1 = analyze_interval_trades(["09:40:00|100,-100", "09:40:00|100,-100"], start_date, end_date,
+                                              1.2, -1, .5,
+                                              stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
+                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                              start_time="09:15:00", end_time="14:30:00",
+                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                              india_vix_fn=lambda x: False)
+        # "10:40:00|0,0", "11:40:00|0,0" "09:40:00|0,0", "10:40:00|0,0"
+        result_tue = analyze_interval_trades(["09:40:00|0,0", "09:40:00|0,0"], start_date, end_date, 1.2, -1,
+                                             .6,
                                              stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
-        # "09:40:00|0,0", "10:40:00|0,0"
-        result_wed = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.2, -1, .6,
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                             india_vix_fn=lambda x: x < 20)
+
+        result_tue1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date, end_date, 1.2, -1,
+                                              .6,
+                                              stop_at_target=-1, allowed_week_day=1, is_c2c_enabled=False,
+                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                              start_time="09:15:00", end_time="14:30:00",
+                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                              india_vix_fn=lambda x: x >= 20)
+        # "10:40:00|0,0", "11:40:00|0,0"
+        result_wed = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.2, -1,
+                                             .6,
                                              stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                             india_vix_fn=lambda x: x < 20)
+        result_wed1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date, end_date, 1.2, -1,
+                                              .6,
+                                              stop_at_target=-1, allowed_week_day=2, is_c2c_enabled=False,
+                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                              start_time="09:15:00", end_time="14:30:00",
+                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                              india_vix_fn=lambda x: x >= 20)
         # "09:40:00|0,0", "10:40:00|0,0" "10:40:00|0,0", "12:40:00|0,0"
-        result_thu = analyze_interval_trades(["09:20:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.6, 140, .6,
+        result_thu = analyze_interval_trades(["09:20:00|0,0", "10:40:00|0,0"], start_date, end_date, 1.6, 130, .6,
                                              stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
-        # "10:40:00|0,0", "11:40:00|0,0"
-        result_fri = analyze_interval_trades([], start_date, end_date, 1.2, 50, .6,
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                             india_vix_fn=lambda x: x < 40)
+        result_thu1 = analyze_interval_trades(["09:20:00|100,-100", "10:40:00|100,-100"], start_date, end_date, 1.6,
+                                              130, .6,
+                                              stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
+                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
+                                              start_time="09:15:00", end_time="14:30:00",
+                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                              india_vix_fn=lambda x: False)
+        # "10:40:00|0,0", "11:40:00|0,0" "10:40:00|0,0", "09:40:00|0,0"
+        result_fri = analyze_interval_trades(["09:40:00|0,0", "09:40:00|0,0"], start_date, end_date,
+                                             1.2, 60, .5,
                                              stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
                                              start_time="09:15:00", end_time="14:30:00",
-                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type)
+                                             analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                             india_vix_fn=lambda x: x < 20)
+        result_fri1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date, end_date,
+                                              1.2, -1, .5,
+                                              stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
+                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
+                                              start_time="09:15:00", end_time="14:30:00",
+                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
+                                              india_vix_fn=lambda x: False)
         # result_fri4 = analyze_interval_trades(["0940", "1040", "1140"], '2021-01-01', '2022-02-11', 1.2, 100, 60,
         #                                       stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=False,
         #                                       min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg)
-        results = [result_mon, result_tue, result_wed, result_thu, result_fri]
+        results = [result_mon, result_mon1, result_tue, result_tue1, result_wed, result_wed1, result_thu, result_thu1,
+                   result_fri, result_fri1]
         valid_results = [result for result in results if result is not None and result["intervals"] > 0]
         total_profit = 0
         # straddle_counts = sum([result["straddle_count"] for result in results if result is not None])
         # 25 is the lot size / no. of months run
 
-        no_of_weeks_run = round(get_diff_in_days(start_date, end_date) / 7)
         total_profit_after_brokerage = 0
         first_valid_intervals = valid_results[0]["intervals"]
         for valid_result in valid_results:
             week_intervals = valid_result["intervals"]
             profit_per_unit = valid_result["total_profit"]
+            profit_trackers = valid_result["profit_tracker"]
+            no_of_days_run = len(profit_trackers)
             weekday_lot_profit = profit_per_unit * lots * lot_quantity
-            weekday_brokerage = brokerage_per_straddle * week_intervals * no_of_weeks_run
+            weekday_brokerage = brokerage_per_straddle * week_intervals * no_of_days_run
             weekday_profit_after_brokerage = weekday_lot_profit - weekday_brokerage
             print(
                 f'day:{valid_result["allowed_week_day"]} ppu:{profit_per_unit} win_d:{valid_result["win_days"]} '
