@@ -19,28 +19,31 @@ from zerodha_kiteconnect_algo_trading import MyTicker
 
 
 class ZerodhaBrokingAlgo:
-    def __init__(self, is_testing: bool, sleep_time: int, day_trade: DayTrade):
+    def __init__(self, is_testing: bool, sleep_time: int):
         print("")
         self.is_testing = is_testing
         self.straddle_list: List[Straddle] = []
         self.zerodha_api = ZerodhaApi(is_testing)
         self.zerodha_positions: List[Dict] = []
         self.sleep_time = sleep_time
-        self.day_trade: DayTrade = day_trade
         # self.target_profit = target_profit
         self.target_profit_reached = True
         # self.trailing_sl = trailing_sl
         # self.set_c2c = set_c2c
 
-    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str, buy_leg_max_price: int) -> Straddle:
+    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str, buy_leg_max_price: int,
+                            strike_selector_fn, day_trade: DayTrade) -> Straddle:
         ce_option_type = "CE"
         pe_option_type = "PE"
         option_sell = "SELL"
         option_buy = "BUY"
         # nse_json_data = get_pickle_data('nse_json_data')
-        spot_price = self.zerodha_api.get_latest_b_nifty(self.day_trade.access_token)
+        spot_price = self.zerodha_api.get_latest_b_nifty(day_trade.access_token)
         nse_json_data = self.zerodha_api.fetch_nse_data()
         atm_strike_price = round_nearest(spot_price, 100)
+
+        pe_strike_price = strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
+        ce_strike_price = strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
 
         strike_price_list = nse_json_data['records']['data']
         nearest_expiry_date = nse_json_data['records']['expiryDates'][0]
@@ -131,16 +134,20 @@ class ZerodhaBrokingAlgo:
                 if len(matched_zerodha_orders) > 0:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
-    def add_legs_to_basket(self, straddle: Straddle, trade_time: str, access_token: str, quantity: int):
-        basket_name = f'{self.day_trade.date_str}_{trade_time}'
+    def add_legs_to_basket(self, straddle: Straddle, access_token: str):
+        basket_name = f'{self.day_trade.date_str}_{straddle.trade_time}'
         basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token, quantity,
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token,
+                                          straddle.buy_pe_position.quantity,
                                           straddle.buy_pe_position.sell_or_buy, 0, 0, "MARKET")
-        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token, quantity,
+        self.zerodha_api.add_basket_items(basket_id, straddle.buy_ce_position.symbol, access_token,
+                                          straddle.buy_ce_position.quantity,
                                           straddle.buy_ce_position.sell_or_buy, 0, 0, "MARKET")
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token,
+                                          straddle.sell_pe_position.quantity,
                                           straddle.sell_pe_position.sell_or_buy, 0, 0, "MARKET")
-        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token, quantity,
+        self.zerodha_api.add_basket_items(basket_id, straddle.sell_ce_position.symbol, access_token,
+                                          straddle.sell_ce_position.quantity,
                                           straddle.sell_ce_position.sell_or_buy, 0, 0, "MARKET")
         # self.zerodha_api.add_basket_items(basket_id, straddle.sell_pe_position.symbol, access_token, quantity,
         #                                   "BUY", 400, 300, "SL")
@@ -149,13 +156,14 @@ class ZerodhaBrokingAlgo:
         #                                   300, "SL")
         return basket_id
 
-    def place_straddle_order(self, sl: float, quantity: int, trade_time: str, enc_token: str,
+    def place_straddle_order(self, sl: float, quantity: int, strike_selector_str: str, trade_time: str, enc_token: str,
                              access_token: str) -> Straddle:
         # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
+
         straddle = self.prepare_option_legs(sl, quantity, trade_time, 6)
         # creating basket
-        basket_id = self.add_legs_to_basket(straddle, trade_time, access_token, quantity)
+        basket_id = self.add_legs_to_basket(straddle, access_token)
         self.straddle_list.append(straddle)
 
         self.zerodha_api.place_regular_order(straddle.buy_pe_position, enc_token, quantity, basket_id)
@@ -311,6 +319,7 @@ class ZerodhaBrokingAlgo:
         # position1= Position(symbol, "PE", "SELL", 25, spot_price, strike_price, sl)
 
 
+# class for analyzing existing position
 class PositionAnalyzer(threading.Thread):
     position_analyzer = None
 
@@ -342,6 +351,7 @@ class TradePlacer(threading.Thread):
         TradePlacer.trade_placer_instance = self
         self.stop_running = False
         self.zerodha_algo_trader: ZerodhaBrokingAlgo = None
+        self.zerodha_api: ZerodhaApi = None
 
     def run(self):
         start_time = time.time()
@@ -359,21 +369,31 @@ class TradePlacer(threading.Thread):
                 week_day = today_date.weekday()
                 configured_interval_sl = trade_setup.AllTrade.trade_intervals_by_week_day[week_day]
                 # configured_intervals = [interval.split("|")[0] for interval in configured_interval_sl]
+                # list of straddles that needs to executed i.e. checks whether its past the current time
+                india_vix = self.zerodha_api.get_latest_instrument_price(day_trade.access_token, "INDIA VIX")
                 passed_interval_sls = [interval_sl for interval_sl in configured_interval_sl if
-                                       interval_sl.split("|")[0] < current_min_str]
+                                       eval(f'lambda time,iv:{interval_sl.split("|")[0]}')(current_min_str,
+                                                                                           float(india_vix))]
                 if len(passed_interval_sls) > 0:
                     # filtering out the ones that are already executed.
                     not_executed_interval_sls = [interval_sl for interval_sl in passed_interval_sls if
                                                  interval_sl.split("|")[0] not in day_trade.straddle_by_time]
                     if len(not_executed_interval_sls) > 0:
+                        # if its not 1 that would mean some of  earlier straddle was not executed
+                        if len(not_executed_interval_sls) != 1:
+                            raise Exception("something had gone gone wrong as some of ")
                         not_executed_interval_sl = not_executed_interval_sls[0]
                         interval_sl_split = not_executed_interval_sl.split("|")
-                        # |1.2|100|60
+                        # |1.2|100|60  0: ["time>'09:40' and iv<=20|sp:sp|1.2|60|.5",
+                        #             "time>'10:40' and iv<=20|sp:sp|1.2|60|.5"],
                         # placing the straddle order
+                        strike_selector_fn = eval(f'lambda sp,ttype: {interval_sl_split[1]}')
                         straddle = self.zerodha_algo_trader.place_straddle_order(float(interval_sl_split[1]),
                                                                                  constants.BANKNIFTY_LOT_SIZE,
+                                                                                 strike_selector_fn,
                                                                                  interval_sl_split[0],
-                                                                                 day_trade.access_token)
+                                                                                 day_trade.access_token,
+                                                                                 day_trade.enctoken)
                         all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                                     straddle.buy_ce_position]
 

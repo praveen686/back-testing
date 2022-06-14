@@ -9,6 +9,7 @@ import trade_setup
 from AnalyzeData import analyze_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
+from zerodha_api import ZerodhaApi
 from zerodha_kiteconnect_algo_trading import MyTicker
 
 from os.path import exists
@@ -77,18 +78,20 @@ def zerodha():
 
 @app.route("/startAnalyzer", methods=["GET", "OPTIONS"])
 def startAnalyzer():
+    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5)
     # this checking is done so that there will be only one instance of Trade Placer. Like Singleton class in Java
     trade_placer = TradePlacer.trade_placer_instance
     if trade_placer is None:
         trade_placer = TradePlacer()
+        trade_placer.zerodha_algo_trader = zerodha_algo_trader
+        zerodha_api = ZerodhaApi(False)
+        trade_placer.zerodha_api = zerodha_api
         trade_placer.start()
     position_analyzer = PositionAnalyzer.position_analyzer
     if position_analyzer is None:
         position_analyzer = PositionAnalyzer()
+        position_analyzer.zerodha_algo_trader = zerodha_algo_trader
         position_analyzer.start()
-    zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5, day_trade=day_trade)
-    trade_placer.zerodha_algo_trader = zerodha_algo_trader
-    position_analyzer.zerodha_algo_trader = zerodha_algo_trader
 
 
 @app.route("/testtest", methods=["GET", "OPTIONS"])

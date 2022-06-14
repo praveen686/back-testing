@@ -198,7 +198,7 @@ class ZerodhaApi:
 
     def place_sl_order(self, position: Position, sl: float, quantity: int, enc_token: str):
         sl_trigger_price = round(position.get_premium() * sl)
-        sl_price = round(sl_trigger_price * .5)
+        sl_price = round(sl_trigger_price * 1.4)
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -251,6 +251,17 @@ class ZerodhaApi:
             response = requests.get(kite_url, headers=zerodha_header)
             spot_price = json.loads(response.text)['data']['NSE:NIFTY BANK']["last_price"]
         return round(float(spot_price))
+
+    def get_latest_instrument_price(self, access_token: str, instrument: str):
+        kite_url = f'https://api.kite.trade/quote?i=NSE:{instrument.replace(" ", "%20")}'
+        print(kite_url)
+        if self.is_testing:
+            price = 34763
+        else:
+            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            response = requests.get(kite_url, headers=zerodha_header)
+            price = json.loads(response.text)['data'][f'NSE:{instrument}']["last_price"]
+        return round(float(price))
 
     def get_zerodha_open_positions(self, access_token: str):
         position_url = f'https://kite.zerodha.com/oms/portfolio/positions?hello={random.random()}'
