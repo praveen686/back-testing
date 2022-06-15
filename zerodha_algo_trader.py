@@ -9,8 +9,9 @@ import datetime
 import constants
 import trade_setup
 from option_util import round_nearest, get_instrument_prefix
-from trade_setup import DayTrade
-from util import write_pickle_data, get_pickle_data, get_today_date_in_str, get_current_min_in_str
+from trade_setup import DayTrade, TradeMatrix
+from util import write_pickle_data, get_pickle_data, get_today_date_in_str, get_current_min_in_str, \
+    parse_trade_selectors
 from zerodha_api import ZerodhaApi
 from zerodha_classes import *
 from os.path import exists
@@ -31,8 +32,7 @@ class ZerodhaBrokingAlgo:
         # self.trailing_sl = trailing_sl
         # self.set_c2c = set_c2c
 
-    def prepare_option_legs(self, sl: float, quantity: int, trade_time: str, buy_leg_max_price: int,
-                            strike_selector_fn, day_trade: DayTrade) -> Straddle:
+    def prepare_option_legs(self, trade_matrix: TradeMatrix, day_trade: DayTrade) -> Straddle:
         ce_option_type = "CE"
         pe_option_type = "PE"
         option_sell = "SELL"
@@ -42,8 +42,8 @@ class ZerodhaBrokingAlgo:
         nse_json_data = self.zerodha_api.fetch_nse_data()
         atm_strike_price = round_nearest(spot_price, 100)
 
-        pe_strike_price = strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
-        ce_strike_price = strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
+        pe_strike_price = trade_matrix.strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
+        ce_strike_price = trade_matrix.strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
 
         strike_price_list = nse_json_data['records']['data']
         nearest_expiry_date = nse_json_data['records']['expiryDates'][0]
@@ -52,23 +52,24 @@ class ZerodhaBrokingAlgo:
         # ce_premium = get_strike_price_premium(strike_price_list, nearest_expiry_date, ce_option_type, strike_price)
         # getting the buy strike price for the given expiry to reduce the margin
         buy_pe_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, pe_option_type,
-                                               buy_leg_max_price, spot_price)
+                                               day_trade.buy_leg_max_price, spot_price)
         buy_ce_strike_entry = self.get_buy_leg(strike_price_list, nearest_expiry_date, ce_option_type,
-                                               buy_leg_max_price, spot_price)
+                                               day_trade.buy_leg_max_price, spot_price)
 
         buy_pe_position = self.get_position(nearest_expiry_date, buy_pe_strike_entry['strikePrice'], spot_price,
                                             pe_option_type,
-                                            option_buy, -1, quantity)
+                                            option_buy, -1, trade_matrix.quantity)
         buy_ce_position = self.get_position(nearest_expiry_date, buy_ce_strike_entry['strikePrice'], spot_price,
                                             ce_option_type,
-                                            option_buy, -1, quantity)
+                                            option_buy, -1, trade_matrix.quantity)
 
-        sell_pe_position = self.get_position(nearest_expiry_date, atm_strike_price, spot_price, pe_option_type,
-                                             option_sell, sl, quantity)
-        sell_ce_position = self.get_position(nearest_expiry_date, atm_strike_price, spot_price, ce_option_type,
-                                             option_sell, sl, quantity)
+        sell_pe_position = self.get_position(nearest_expiry_date, pe_strike_price, spot_price, pe_option_type,
+                                             option_sell, trade_matrix.sl, trade_matrix.quantity)
+        sell_ce_position = self.get_position(nearest_expiry_date, ce_strike_price, spot_price, ce_option_type,
+                                             option_sell, trade_matrix.sl, trade_matrix.quantity)
 
-        straddle = Straddle(trade_time, buy_pe_position, buy_ce_position, sell_pe_position, sell_ce_position)
+        straddle = Straddle(trade_matrix.time, buy_pe_position, buy_ce_position, sell_pe_position,
+                            sell_ce_position)
         return straddle
 
     def get_position(self, nearest_expiry_date: str, strike_price: float, spot_price: float, option_type: str,
@@ -156,23 +157,26 @@ class ZerodhaBrokingAlgo:
         #                                   300, "SL")
         return basket_id
 
-    def place_straddle_order(self, sl: float, quantity: int, strike_selector_str: str, trade_time: str, enc_token: str,
-                             access_token: str) -> Straddle:
+    def place_straddle_order(self, trade_matrix: TradeMatrix, day_trade: DayTrade) -> Straddle:
         # load existing straddle if any from the file and populate straddle_list instance variable
         self.load_straddles_from_file()
 
-        straddle = self.prepare_option_legs(sl, quantity, trade_time, 6)
+        straddle = self.prepare_option_legs(trade_matrix, day_trade)
         # creating basket
-        basket_id = self.add_legs_to_basket(straddle, access_token)
+        basket_id = self.add_legs_to_basket(straddle, day_trade.access_token)
         self.straddle_list.append(straddle)
 
-        self.zerodha_api.place_regular_order(straddle.buy_pe_position, enc_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.buy_pe_position, day_trade.enctoken, trade_matrix.quantity,
+                                             basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.buy_ce_position, enc_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.buy_ce_position, day_trade.enctoken, trade_matrix.quantity,
+                                             basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_pe_position, enc_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.sell_pe_position, day_trade.enctoken, trade_matrix.quantity,
+                                             basket_id)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_regular_order(straddle.sell_ce_position, enc_token, quantity, basket_id)
+        self.zerodha_api.place_regular_order(straddle.sell_ce_position, day_trade.enctoken, trade_matrix.quantity,
+                                             basket_id)
 
         # ideally this should be handled in the place order method but for the testing its manually assigned.
 
@@ -182,20 +186,22 @@ class ZerodhaBrokingAlgo:
 
         time.sleep(self.sleep_time)
         # this will get the placed orders from zerodha and attaches it to 'placed_order' using the order id present
-        zerodha_orders = self.zerodha_api.get_zerodha_open_orders(access_token)
+        zerodha_orders = self.zerodha_api.get_zerodha_open_orders(day_trade.access_token)
         self.attach_zerodha_order(straddle, zerodha_orders, "REGULAR")
         # only once above orders are set to the position, you can place sl order as SL order relies on current premium
         # to come with SL trigger amount
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_sl_order(straddle.sell_pe_position, sl, quantity, enc_token)
+        self.zerodha_api.place_sl_order(straddle.sell_pe_position, trade_matrix.sl, trade_matrix.quantity,
+                                        day_trade.enctoken)
         time.sleep(self.sleep_time)
-        self.zerodha_api.place_sl_order(straddle.sell_ce_position, sl, quantity, enc_token)
+        self.zerodha_api.place_sl_order(straddle.sell_ce_position, trade_matrix.sl, trade_matrix.quantity,
+                                        day_trade.enctoken)
         if self.is_testing:
             straddle.sell_pe_position.sl_order.order_id = '220413001614601'
             straddle.sell_ce_position.sl_order.order_id = '220413001261330'
         time.sleep(self.sleep_time)
         # again fetching the sl orders back from zerodha and attaching the same
-        zerodha_orders = self.zerodha_api.get_zerodha_open_orders(access_token)
+        zerodha_orders = self.zerodha_api.get_zerodha_open_orders(day_trade.access_token)
         self.attach_zerodha_order(straddle, zerodha_orders, "SL")
         # this will save the final list present under straddle_list
         self.save_straddle_in_file()
@@ -367,33 +373,28 @@ class TradePlacer(threading.Thread):
                 today_date = datetime.datetime.today()
                 current_min_str = get_current_min_in_str()
                 week_day = today_date.weekday()
-                configured_interval_sl = trade_setup.AllTrade.trade_intervals_by_week_day[week_day]
+                configured_interval_sl: List[str] = trade_setup.AllTrade.trade_intervals_by_week_day[week_day]
+                trade_matrices: List[TradeMatrix] = parse_trade_selectors(configured_interval_sl)
                 # configured_intervals = [interval.split("|")[0] for interval in configured_interval_sl]
                 # list of straddles that needs to executed i.e. checks whether its past the current time
                 india_vix = self.zerodha_api.get_latest_instrument_price(day_trade.access_token, "INDIA VIX")
-                passed_interval_sls = [interval_sl for interval_sl in configured_interval_sl if
-                                       eval(f'lambda time,iv:{interval_sl.split("|")[0]}')(current_min_str,
-                                                                                           float(india_vix))]
-                if len(passed_interval_sls) > 0:
+                passed_matrices = [matrix for matrix in trade_matrices if
+                                   matrix.time <= current_min_str and matrix.trade_selector_fn(float(india_vix))]
+                if len(passed_matrices) > 0:
                     # filtering out the ones that are already executed.
-                    not_executed_interval_sls = [interval_sl for interval_sl in passed_interval_sls if
-                                                 interval_sl.split("|")[0] not in day_trade.straddle_by_time]
-                    if len(not_executed_interval_sls) > 0:
+                    not_executed_trades = [metric for metric in passed_matrices if
+                                           metric.matrix_id not in day_trade.straddle_by_time]
+                    if len(not_executed_trades) > 0:
                         # if its not 1 that would mean some of  earlier straddle was not executed
-                        if len(not_executed_interval_sls) != 1:
+                        if len(not_executed_trades) != 1:
                             raise Exception("something had gone gone wrong as some of ")
-                        not_executed_interval_sl = not_executed_interval_sls[0]
-                        interval_sl_split = not_executed_interval_sl.split("|")
+                        not_executed_trade: TradeMatrix = not_executed_trades[0]
+                        # interval_sl_split = not_executed_trade.split("|")
                         # |1.2|100|60  0: ["time>'09:40' and iv<=20|sp:sp|1.2|60|.5",
                         #             "time>'10:40' and iv<=20|sp:sp|1.2|60|.5"],
                         # placing the straddle order
-                        strike_selector_fn = eval(f'lambda sp,ttype: {interval_sl_split[1]}')
-                        straddle = self.zerodha_algo_trader.place_straddle_order(float(interval_sl_split[1]),
-                                                                                 constants.BANKNIFTY_LOT_SIZE,
-                                                                                 strike_selector_fn,
-                                                                                 interval_sl_split[0],
-                                                                                 day_trade.access_token,
-                                                                                 day_trade.enctoken)
+                        strike_selector_fn = eval(f'lambda sp,ttype: {not_executed_trade}')
+                        straddle = self.zerodha_algo_trader.place_straddle_order(not_executed_trade, day_trade)
                         all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                                     straddle.buy_ce_position]
 
