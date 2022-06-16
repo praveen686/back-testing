@@ -18,6 +18,9 @@ class DayTrade:
         self.straddle_by_time: Dict[str, Straddle] = {}
         self.ltp: Dict[int, float] = {}
         self.buy_leg_max_price = None
+        self.is_all_position_exited = False
+        self.target_profit_reached = False
+        self.trailing_profit_sl: float = None
 
 
 #
@@ -25,7 +28,7 @@ class DayTrade:
 #                                              1.2, 60, .5,
 class TradeMatrix:
     def __init__(self, matrix_id: str, time: str, trade_selector_fn, strike_selector_fn, sl: float, target_profit: int,
-                 trailing_sl_perc: float, quantity: int):
+                 trailing_sl_perc: float, quantity: int, is_c2c_enabled: bool):
         self.matrix_id: str = matrix_id
         self.time: str = time
         self.trade_selector_fn = trade_selector_fn
@@ -34,24 +37,25 @@ class TradeMatrix:
         self.target_profit = target_profit
         self.trailing_sl_perc = trailing_sl_perc
         self.quantity = quantity
+        self.is_c2c_enabled = is_c2c_enabled
 
 
 class AllTrade:
     trade_intervals_by_week_day: Dict[int, List[str]] = {
-        0: ["mon_0940|09:40|iv:iv<=20|sp:sp|1.2|60|.5|25",
-            "mon_1040|10:40|iv:iv<=20|sp:sp|1.2|60|.5|25"],
-        1: ["tue_0940_iv_lt_20|09:40|iv:iv<20|sp:sp|1.2|-1|-1|25",
-            "tue_0940_iv_gte_20|09:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25",
-            "tue_1040_iv_lt_20|10:40|iv:iv<20|sp:sp|1.2|-1|-1|25",
-            "tue_1040_iv_gte_20|10:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25"],
-        2: ["wed_0940_iv_lt_20|09:40|iv:iv<20|sp:sp|1.2|-1|-1|25",
-            "wed_0940_iv_gte_20|09:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25",
-            "wed_1040_iv_lt_20|10:40|iv:iv<20|sp:sp|1.2|-1|-1|25",
-            "wed_1040_iv_gte_20|10:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25"],
-        3: ["thu_0920|09:20|sp:sp|1.6|-1|-1|25",
-            "thu_1040|10:40|sp:sp|1.6|-1|-1|25"],
-        4: ["fri_0940|09:40|iv:iv<=20|sp:sp|1.2|60|.5|25",
-            "fri_1040|10:40|iv:iv<=20|sp:sp|1.2|60|.5|25"],
+        0: ["mon_0940|09:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True",
+            "mon_1040|10:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True"],
+        1: ["tue_0940_iv_lt_20|09:40|iv:iv<20|sp:sp|1.2|-1|-1|25|True",
+            "tue_0940_iv_gte_20|09:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True",
+            "tue_1040_iv_lt_20|10:40|iv:iv<20|sp:sp|1.2|-1|-1|25|True",
+            "tue_1040_iv_gte_20|10:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True"],
+        2: ["wed_0940_iv_lt_20|09:40|iv:iv<20|sp:sp|1.2|-1|-1|25|True",
+            "wed_0940_iv_gte_20|09:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True",
+            "wed_1040_iv_lt_20|10:40|iv:iv<20|sp:sp|1.2|-1|-1|25|True",
+            "wed_1040_iv_gte_20|10:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True"],
+        3: ["thu_0920|09:20|sp:sp|1.6|-1|-1|25|True",
+            "thu_1040|10:40|sp:sp|1.6|-1|-1|25|True"],
+        4: ["fri_0940|09:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True",
+            "fri_1040|10:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True"],
     }
 
     trading_data_by_date: Dict[str, DayTrade] = {}

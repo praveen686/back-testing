@@ -33,11 +33,11 @@ kite_url = 'https://kite.trade/connect/login?api_key=gui6ggv8t8t5almq&v=3'
 class MyTicker(threading.Thread):
     ticker_instance = None
 
-    def __init__(self, access_token, tokens_to_subscribe: List[int], day_trade: DayTrade):
+    def __init__(self, tokens_to_subscribe: List[int], day_trade: DayTrade):
         threading.Thread.__init__(self)
         MyTicker.ticker_instance = self
         self.day_trade = day_trade
-        self.kite_ticker = KiteTicker("gui6ggv8t8t5almq", access_token)
+        self.kite_ticker = KiteTicker("gui6ggv8t8t5almq", day_trade.access_token)
         self.tokens_to_subscribe = tokens_to_subscribe
 
     def run(self):

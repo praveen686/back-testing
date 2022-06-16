@@ -83,8 +83,9 @@ def parse_trade_selectors(trade_selectors: List[str]) -> List[TradeMatrix]:
         target_profit = int(selector_str_split[5])
         trailing_sl_perc = float(selector_str_split[6])
         quantity = int(selector_str_split[7])
+        is_c2c_enabled = bool(selector_str_split[8])
         return TradeMatrix(matrix_id, time, trade_selector_fn, strike_selector_fn, sl, target_profit, trailing_sl_perc,
-                           quantity)
+                           quantity, is_c2c_enabled)
 
     selectors: List[TradeMatrix] = list(map(map_to_matrix, trade_selectors))
     return selectors

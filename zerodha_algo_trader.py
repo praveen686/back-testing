@@ -37,6 +37,8 @@ class ZerodhaBrokingAlgo:
         pe_option_type = "PE"
         option_sell = "SELL"
         option_buy = "BUY"
+        target_profit = trade_matrix.target_profit
+        trailing_sl_perc = trade_matrix.trailing_sl_perc
         # nse_json_data = get_pickle_data('nse_json_data')
         spot_price = self.zerodha_api.get_latest_b_nifty(day_trade.access_token)
         nse_json_data = self.zerodha_api.fetch_nse_data()
@@ -70,6 +72,8 @@ class ZerodhaBrokingAlgo:
 
         straddle = Straddle(trade_matrix.time, buy_pe_position, buy_ce_position, sell_pe_position,
                             sell_ce_position)
+        straddle.target_profit = target_profit
+        straddle.trailing_sl_perc = trailing_sl_perc
         return straddle
 
     def get_position(self, nearest_expiry_date: str, strike_price: float, spot_price: float, option_type: str,
@@ -207,29 +211,34 @@ class ZerodhaBrokingAlgo:
         self.save_straddle_in_file()
         return straddle
 
-    # def get_average_sell_price(self, symbol: str, positions: List):
-    #     symbol_position = [position for position in positions if
-    #                        position["tradingsymbol"] == symbol][0]
-    #     return float(symbol_position['sell_price'])
-
-    def analyze_existing_positions(self):
+    def analyze_existing_positions(self, day_trade: DayTrade):
         # load existing straddle if any from the file
         self.load_straddles_from_file()
 
-        self.zerodha_positions = self.zerodha_api.get_zerodha_open_positions(self.day_trade.access_token)
-        total_profit = self.get_current_profit(self.zerodha_positions)
-        print(f'total profit:{total_profit}')
+        self.zerodha_positions = self.zerodha_api.get_zerodha_open_positions(day_trade.access_token)
+        current_profit = self.get_current_profit(self.zerodha_positions, day_trade)
+        print(f'total profit:{current_profit}')
 
-        if self.target_profit != -1:
-            if self.target_profit_reached:
-                if total_profit <= self.trailing_sl:
-                    self.zerodha_api.exit_all_open_positions(self.zerodha_positions, self.day_trade.access_token)
-            if total_profit > self.target_profit:
-                self.target_profit_reached = True
-                if self.trailing_sl == -1:
-                    # case when we want take the profit and exit without trailing sl
-                    self.zerodha_api.exit_all_open_positions(self.zerodha_positions, self.day_trade.access_token)
-        #
+        if len(day_trade.straddle_by_time) > 0:
+            first_straddle: Straddle = list(day_trade.straddle_by_time.values())[0]
+            # target profit is set, for ex: mon and fri
+            if first_straddle.target_profit != -1:
+                # if profit had reached target profit at some point. will then check for trailing profit
+                if day_trade.target_profit_reached:
+                    if current_profit <= day_trade.trailing_profit_sl:
+                        if day_trade.is_all_position_exited is False:
+                            self.zerodha_api.exit_all_open_positions(self.zerodha_positions, day_trade.access_token)
+                            day_trade.is_all_position_exited = True
+                            print("reached trailing profit", day_trade.date_str, current_profit)
+                    else:
+                        new_trailing_profit = current_profit * first_straddle.trailing_sl_perc
+                        if new_trailing_profit > day_trade.trailing_profit_sl:
+                            day_trade.trailing_profit_sl = new_trailing_profit
+                else:
+                    if current_profit >= first_straddle.target_profit:
+                        day_trade.target_profit_reached = True
+                        day_trade.trailing_profit_sl = current_profit * first_straddle.trailing_sl_perc
+
         # this is to avoid calling it for second straddle if its already invoked
         is_order_n_position_fetched = False
         for straddle in self.straddle_list:
@@ -240,7 +249,7 @@ class ZerodhaBrokingAlgo:
             # you need latest to position to see its done and the latest orders to see sl has been hit
             if not is_order_n_position_fetched:
                 time.sleep(self.sleep_time)
-                zerodha_orders = self.zerodha_api.get_zerodha_open_orders(self.day_trade.access_token)
+                zerodha_orders = self.zerodha_api.get_zerodha_open_orders(day_trade.access_token)
                 # this is done so that to attach the latest order to and see if any of the sl is hit of its completed.
                 self.attach_zerodha_order(straddle, zerodha_orders, "BOTH")
                 is_order_n_position_fetched = True
@@ -249,8 +258,8 @@ class ZerodhaBrokingAlgo:
             sell_ce_position: Position = straddle.sell_ce_position
 
             if self.set_c2c:
-                self.handle_c2c_sl(sell_pe_position, sell_ce_position, self.day_trade.access_token)
-                self.handle_c2c_sl(sell_ce_position, sell_pe_position, self.day_trade.access_token)
+                self.handle_c2c_sl(sell_pe_position, sell_ce_position, day_trade.access_token)
+                self.handle_c2c_sl(sell_ce_position, sell_pe_position, day_trade.access_token)
 
         self.save_straddle_in_file()
 
@@ -281,13 +290,13 @@ class ZerodhaBrokingAlgo:
     #         self.zerodha_api.modify_stop_loss(algo_position, new_trigger_price, other_price, access_token)
     #         algo_position.sl_order.is_trailing_sl_set = True
 
-    def get_current_profit(self, positions):
+    def get_current_profit(self, positions, day_trade: DayTrade):
         total_profit = 0
         for position in positions:
             if position['quantity'] == 0:
                 position_profit = position['pnl']
             else:
-                ltp = self.day_trade.ltp[position['instrument_token']]
+                ltp = day_trade.ltp[position['instrument_token']]
                 buy_quantity = position['buy_quantity']
                 sell_quantity = position['sell_quantity']
                 buy_price = position['buy_price']
@@ -296,7 +305,7 @@ class ZerodhaBrokingAlgo:
                 if buy_quantity == 0:
                     position_profit = (sell_price - ltp) * sell_quantity
                 else:
-                    position_profit = (ltp - buy_price) * sell_quantity
+                    position_profit = (ltp - buy_price) * buy_quantity
             total_profit = total_profit + position_profit
         return total_profit
 
@@ -345,7 +354,9 @@ class PositionAnalyzer(threading.Thread):
             local_start_time = time.time()
             print("about to check")
             today_date_str = get_today_date_in_str()
-            self.zerodha_algo_trader.analyze_existing_positions()
+            day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
+            if self.zerodha_algo_trader is not None and day_trade is not None:
+                self.zerodha_algo_trader.analyze_existing_positions(day_trade)
             time.sleep(check_interval - ((time.time() - start_time) % check_interval))
 
 
@@ -363,10 +374,10 @@ class TradePlacer(threading.Thread):
         start_time = time.time()
         check_interval = 5
         while True:
+            local_start_time = time.time()
             today_date_str = get_today_date_in_str()
             day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
             if self.zerodha_algo_trader is not None and day_trade is not None:
-                local_start_time = time.time()
                 print("about to check")
                 if self.stop_running is True:
                     break
@@ -389,11 +400,6 @@ class TradePlacer(threading.Thread):
                         if len(not_executed_trades) != 1:
                             raise Exception("something had gone gone wrong as some of ")
                         not_executed_trade: TradeMatrix = not_executed_trades[0]
-                        # interval_sl_split = not_executed_trade.split("|")
-                        # |1.2|100|60  0: ["time>'09:40' and iv<=20|sp:sp|1.2|60|.5",
-                        #             "time>'10:40' and iv<=20|sp:sp|1.2|60|.5"],
-                        # placing the straddle order
-                        strike_selector_fn = eval(f'lambda sp,ttype: {not_executed_trade}')
                         straddle = self.zerodha_algo_trader.place_straddle_order(not_executed_trade, day_trade)
                         all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                                     straddle.buy_ce_position]
@@ -411,9 +417,9 @@ class TradePlacer(threading.Thread):
                             ticker_tracker.tokens_to_subscribe = tokens_to_subscribe
                         else:
                             ticker_tracker.tokens_to_subscribe.extend(tokens_to_subscribe)
-                        day_trade.straddle_by_time[interval_sl_split[0]] = straddle
+                        day_trade.straddle_by_time[not_executed_trade.matrix_id] = straddle
                         # restarting ticker to subscribe with the new instrument tokens
-                        new_ticker_tracker = MyTicker(day_trade.access_token, tokens_to_subscribe, day_trade)
+                        new_ticker_tracker = MyTicker(tokens_to_subscribe, day_trade)
                         new_ticker_tracker.start()
             # day_trade.ticker_tracker = new_ticker_tracker
 

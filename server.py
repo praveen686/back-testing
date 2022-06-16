@@ -79,12 +79,12 @@ def zerodha():
 @app.route("/startAnalyzer", methods=["GET", "OPTIONS"])
 def startAnalyzer():
     zerodha_algo_trader = ZerodhaBrokingAlgo(is_testing=False, sleep_time=5)
+    zerodha_api = ZerodhaApi(False)
     # this checking is done so that there will be only one instance of Trade Placer. Like Singleton class in Java
     trade_placer = TradePlacer.trade_placer_instance
     if trade_placer is None:
         trade_placer = TradePlacer()
         trade_placer.zerodha_algo_trader = zerodha_algo_trader
-        zerodha_api = ZerodhaApi(False)
         trade_placer.zerodha_api = zerodha_api
         trade_placer.start()
     position_analyzer = PositionAnalyzer.position_analyzer
@@ -124,7 +124,7 @@ def settoken():
 @app.route("/ticker", methods=["GET", "OPTIONS"])
 def ticker():
     today_date_str: str = get_today_date_in_str()
-    access_token = TradeS.Data.access_token
+    access_token = TradeSe.Data.access_token
     if access_token is None:
         access_token = get_pickle_data("access_token")
         TradeData.Data.access_token = access_token
