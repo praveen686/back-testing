@@ -1,5 +1,7 @@
 from typing import List, Dict
 
+from trade_setup import TradeMatrix
+
 
 class Order:
     def __init__(self, order_id):
@@ -37,11 +39,10 @@ class Straddle:
 
     def __init__(self, trade_time: str, buy_pe_position: Position, buy_ce_position: Position,
                  sell_pe_position: Position,
-                 sell_ce_position: Position):
+                 sell_ce_position: Position, src_trade_matrix: TradeMatrix):
         self.trade_time = trade_time
         self.buy_pe_position: Position = buy_pe_position
         self.buy_ce_position: Position = buy_ce_position
         self.sell_pe_position: Position = sell_pe_position
         self.sell_ce_position: Position = sell_ce_position
-        self.target_profit: int = None
-        self.trailing_sl_perc: float = None
+        self.src_trade_matrix: TradeMatrix = src_trade_matrix

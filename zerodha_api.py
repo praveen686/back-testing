@@ -79,7 +79,6 @@ class ZerodhaApi:
         open_positions = [position for position in zerodha_positions if position['quantity'] > 0]
         for position in open_positions:
             buy_quantity = position['buy_quantity']
-            sell_quantity = position['sell_quantity']
             position['transaction_type'] = 'SELL' if buy_quantity > 0 else 'BUY'
             self.exit_position(position, access_token)
 
@@ -289,7 +288,7 @@ class ZerodhaApi:
             write_pickle_data("zerodha_orders", orders_json)
         return orders_json["data"]
 
-    def modify_stop_loss(self, position: Position, sl_trigger_price: float, sl_other_price: float, access_token: str):
+    def modify_stop_loss(self, position: Position, sl: float, access_token: str):
         data = {
             "exchange": "NFO",
             "tradingsymbol": "BANKNIFTY2241341700CE",
@@ -307,10 +306,12 @@ class ZerodhaApi:
             "variety": "regular",
             "user_id": "NNV006"
         }
+        sl_trigger_price = round(position.get_premium() * sl)
+        sl_price = round(sl_trigger_price * 1.4)
         data['tradingsymbol'] = position.symbol
         data['quantity'] = position.quantity
         data['order_type'] = "SL"
-        data['price'] = sl_other_price
+        data['price'] = sl_price
         data['trigger_price'] = sl_trigger_price
         data['order_id'] = position.sl_order.order_id
         if self.is_testing:

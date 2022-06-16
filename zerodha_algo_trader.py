@@ -74,6 +74,7 @@ class ZerodhaBrokingAlgo:
                             sell_ce_position)
         straddle.target_profit = target_profit
         straddle.trailing_sl_perc = trailing_sl_perc
+
         return straddle
 
     def get_position(self, nearest_expiry_date: str, strike_price: float, spot_price: float, option_type: str,
@@ -139,8 +140,9 @@ class ZerodhaBrokingAlgo:
                 if len(matched_zerodha_orders) > 0:
                     manual_position.sl_order.zerodha_order = matched_zerodha_orders[0]
 
-    def add_legs_to_basket(self, straddle: Straddle, access_token: str):
-        basket_name = f'{self.day_trade.date_str}_{straddle.trade_time}'
+    def add_legs_to_basket(self, straddle: Straddle, day_trade: DayTrade):
+        basket_name = f'{day_trade.date_str}_{straddle.trade_time}'
+        access_token = day_trade.access_token
         basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
         self.zerodha_api.add_basket_items(basket_id, straddle.buy_pe_position.symbol, access_token,
                                           straddle.buy_pe_position.quantity,
@@ -167,7 +169,7 @@ class ZerodhaBrokingAlgo:
 
         straddle = self.prepare_option_legs(trade_matrix, day_trade)
         # creating basket
-        basket_id = self.add_legs_to_basket(straddle, day_trade.access_token)
+        basket_id = self.add_legs_to_basket(straddle, day_trade)
         self.straddle_list.append(straddle)
 
         self.zerodha_api.place_regular_order(straddle.buy_pe_position, day_trade.enctoken, trade_matrix.quantity,
@@ -221,8 +223,9 @@ class ZerodhaBrokingAlgo:
 
         if len(day_trade.straddle_by_time) > 0:
             first_straddle: Straddle = list(day_trade.straddle_by_time.values())[0]
+            source_matrix: TradeMatrix = first_straddle.src_trade_matrix
             # target profit is set, for ex: mon and fri
-            if first_straddle.target_profit != -1:
+            if source_matrix.target_profit != -1:
                 # if profit had reached target profit at some point. will then check for trailing profit
                 if day_trade.target_profit_reached:
                     if current_profit <= day_trade.trailing_profit_sl:
@@ -231,17 +234,18 @@ class ZerodhaBrokingAlgo:
                             day_trade.is_all_position_exited = True
                             print("reached trailing profit", day_trade.date_str, current_profit)
                     else:
-                        new_trailing_profit = current_profit * first_straddle.trailing_sl_perc
+                        new_trailing_profit = current_profit * source_matrix.trailing_sl_perc
                         if new_trailing_profit > day_trade.trailing_profit_sl:
                             day_trade.trailing_profit_sl = new_trailing_profit
                 else:
-                    if current_profit >= first_straddle.target_profit:
+                    if current_profit >= source_matrix.target_profit:
                         day_trade.target_profit_reached = True
-                        day_trade.trailing_profit_sl = current_profit * first_straddle.trailing_sl_perc
+                        day_trade.trailing_profit_sl = current_profit * source_matrix.trailing_sl_perc
 
         # this is to avoid calling it for second straddle if its already invoked
         is_order_n_position_fetched = False
-        for straddle in self.straddle_list:
+        for straddle in day_trade.straddle_by_time.values():
+            source_matrix: TradeMatrix = straddle.src_trade_matrix
             # if not self.is_both_sl_triggered():
             if self.is_both_sl_triggered(straddle):
                 print("both the sl hit; returning")
@@ -257,7 +261,7 @@ class ZerodhaBrokingAlgo:
             sell_pe_position: Position = straddle.sell_pe_position
             sell_ce_position: Position = straddle.sell_ce_position
 
-            if self.set_c2c:
+            if source_matrix.is_c2c_enabled:
                 self.handle_c2c_sl(sell_pe_position, sell_ce_position, day_trade.access_token)
                 self.handle_c2c_sl(sell_ce_position, sell_pe_position, day_trade.access_token)
 
@@ -267,10 +271,10 @@ class ZerodhaBrokingAlgo:
     def handle_c2c_sl(self, hit_position: Position, other_position: Position, access_token: str):
         if hit_position.is_sl_hit() and (
                 other_position.is_c2c_enabled() is False and other_position.is_sl_hit() is False):
-            sl_trigger_price = round(other_position.get_premium())
-            sl_other_price = round(sl_trigger_price * 2)
-            time.sleep(self.sleep_time)
-            self.zerodha_api.modify_stop_loss(other_position, sl_trigger_price, sl_other_price, access_token)
+            # sl_trigger_price = round(other_position.get_premium())
+            # sl_other_price = round(sl_trigger_price * 2)
+            # time.sleep(self.sleep_time)
+            self.zerodha_api.modify_stop_loss(other_position, 1, access_token)
             other_position.sl_order.is_c2c_set = True
 
     # def handle_trailing_sl(self, algo_position: Position, access_token: str):
