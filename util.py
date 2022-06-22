@@ -4,7 +4,8 @@ import random
 from typing import List
 
 import constants
-from trade_setup import TradeMatrix, AllTrade
+from zerodha_classes import TradeMatrix
+from trade_setup import AllTrade
 
 
 def get_pickle_data(pickle_file_name):
@@ -89,8 +90,3 @@ def parse_trade_selectors(trade_selectors: List[str]) -> List[TradeMatrix]:
 
     selectors: List[TradeMatrix] = list(map(map_to_matrix, trade_selectors))
     return selectors
-
-
-trade_str = AllTrade.trade_intervals_by_week_day[0]
-matrices = parse_trade_selectors(trade_str)
-print(matrices)

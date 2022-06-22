@@ -1,16 +1,17 @@
-from typing import Dict
+from typing import Dict, List
 
 from flask import Flask, request, jsonify, make_response, send_from_directory
 from kiteconnect import KiteTicker, KiteConnect
 
 import constants
 import trade_setup
-from trade_setup import TradeMatrix, DayTrade
+from trade_setup import DayTrade
+from zerodha_classes import TradeMatrix
 from AnalyzeData import analyze_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
 from zerodha_api import ZerodhaApi
-from zerodha_kiteconnect_algo_trading import MyTicker, TradeTicker
+from zerodha_kiteconnect_algo_trading import TradeTicker
 
 from os.path import exists
 
@@ -106,16 +107,16 @@ def test_test():
 
 @app.route("/setenctoken", methods=["GET", "OPTIONS"])
 def settoken():
-    enctoken = request.args.get('enctoken')
+    enc_token = request.args.get('encToken')
     if request.method == "OPTIONS":  # CORS preflight
         return _build_cors_preflight_response()
     elif request.method == "GET":  # The actual request following the preflight
         trading_data_by_date = trade_setup.AllTrade.trading_data_by_date
         today_date_str: str = get_today_date_in_str()
         if today_date_str not in trading_data_by_date:
-            raise RuntimeError(f'date {today_date_str} doesnt exist')
+            trading_data_by_date[today_date_str] = DayTrade(today_date_str, None)
         day_trade: DayTrade = trading_data_by_date[today_date_str]
-        day_trade.enctoken = enctoken
+        day_trade.enctoken = enc_token
         return _corsify_actual_response(jsonify([{"id": 1}]))
     else:
         raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
@@ -129,19 +130,23 @@ def ticker():
 
 @app.route("/findmargin", methods=["GET", "OPTIONS"])
 def find_required_margin():
-    max_leg_price = float(request.args.get('maxlegbuyprice'))
+    if request.method == "OPTIONS":  # CORS preflight
+        return _build_cors_preflight_response()
+    max_leg_price = int(request.args.get('buyLegPrice'))
     trade_placer = TradePlacer.trade_placer_instance
-    if trade_placer is not None:
-        today_date_str = get_today_date_in_str()
-        day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
-        trade_matrix: TradeMatrix = trade_placer.get_not_executed_trades()
-        algo = ZerodhaBrokingAlgo(False, 0)
-        straddle = algo.prepare_option_legs(trade_matrix, day_trade, max_leg_price)
-        zerodha_api = ZerodhaApi(False)
-        response = zerodha_api.get_straddle_with_final_margin(straddle, day_trade.enctoken)
-    else:
-        raise Exception("trade_placer not present")
-    return response
+    algo = ZerodhaBrokingAlgo(False, 0)
+    zerodha_api = ZerodhaApi(False)
+    if trade_placer is None:
+        trade_placer = TradePlacer()
+        trade_placer.zerodha_algo_trader = algo
+        trade_placer.zerodha_api = zerodha_api
+
+    today_date_str = get_today_date_in_str()
+    day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
+    trade_matrix: List[TradeMatrix] = trade_placer.get_not_executed_trades()
+    straddle = algo.prepare_option_legs(trade_matrix[0], day_trade, max_leg_price)
+    response = zerodha_api.get_straddle_with_final_margin(straddle, day_trade.enctoken)
+    return _corsify_actual_response(jsonify(response))
 
 
 @app.route("/stopticker", methods=["GET", "OPTIONS"])

@@ -4,7 +4,7 @@ from typing import Dict, List
 import requests
 
 import constants
-from trade_setup import Basket
+from zerodha_classes import Basket
 from zerodha_classes import Position, Order, Straddle
 from util import write_pickle_data, get_pickle_data
 import requests
@@ -166,9 +166,10 @@ class ZerodhaApi:
             response = {"order_id": '220413000593839'}
             return response
         else:
+            zerodha_header["content-type"] = 'application/json'
             ZerodhaApi.set_auth_header(zerodha_header, enctoken, False)
             response = requests.post("https://kite.zerodha.com/oms/margins/basket?consider_positions=&mode=compact",
-                                     headers=zerodha_header, data=basket_items)
+                                     headers=zerodha_header, data=json.dumps(basket_items))
             if response.status_code != 200:
                 raise Exception(
                     f'exception occurred while trying to fetch margin')
@@ -271,7 +272,7 @@ class ZerodhaApi:
         position.sl_order = sl_order
         print(response)
 
-    def get_latest_b_nifty(self, access_token: str):
+    def get_latest_b_nifty(self, token: str, is_access_token: bool):
         current_time = datetime.datetime.now()
         today_date_str = current_time.strftime("%Y-%m-%d")
         yesterday = current_time - datetime.timedelta(1)
@@ -281,18 +282,18 @@ class ZerodhaApi:
         if self.is_testing:
             spot_price = 34763
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, token, is_access_token)
             response = requests.get(kite_url, headers=zerodha_header)
             spot_price = json.loads(response.text)['data']['NSE:NIFTY BANK']["last_price"]
         return round(float(spot_price))
 
-    def get_latest_instrument_price(self, access_token: str, instrument: str):
+    def get_latest_instrument_price(self, token: str, instrument: str, is_access_token: bool):
         kite_url = f'https://api.kite.trade/quote?i=NSE:{instrument.replace(" ", "%20")}'
         print(kite_url)
         if self.is_testing:
             price = 34763
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, token, is_access_token)
             response = requests.get(kite_url, headers=zerodha_header)
             price = json.loads(response.text)['data'][f'NSE:{instrument}']["last_price"]
         return round(float(price))

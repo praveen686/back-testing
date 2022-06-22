@@ -9,7 +9,7 @@ import datetime
 import constants
 import trade_setup
 from option_util import round_nearest, get_instrument_prefix
-from trade_setup import DayTrade, TradeMatrix, Basket
+from trade_setup import DayTrade
 from util import write_pickle_data, get_pickle_data, get_today_date_in_str, get_current_min_in_str, \
     parse_trade_selectors
 from zerodha_api import ZerodhaApi
@@ -32,14 +32,14 @@ class ZerodhaBrokingAlgo:
         # self.trailing_sl = trailing_sl
         # self.set_c2c = set_c2c
 
-    def prepare_option_legs(self, trade_matrix: TradeMatrix, day_trade: DayTrade, max_buy_leg_price: float) -> Straddle:
+    def prepare_option_legs(self, trade_matrix: TradeMatrix, day_trade: DayTrade, max_buy_leg_price: int) -> Straddle:
         ce_option_type = "CE"
         pe_option_type = "PE"
         option_sell = "SELL"
         option_buy = "BUY"
         target_profit = trade_matrix.target_profit
         trailing_sl_perc = trade_matrix.trailing_sl_perc
-        spot_price = self.zerodha_api.get_latest_b_nifty(day_trade.access_token)
+        spot_price = self.zerodha_api.get_latest_b_nifty(day_trade.enctoken, False)
         nse_json_data = self.zerodha_api.fetch_nse_data()
         atm_strike_price = round_nearest(spot_price, 100)
 
@@ -70,7 +70,7 @@ class ZerodhaBrokingAlgo:
                                              option_sell, trade_matrix.sl, trade_matrix.quantity)
 
         straddle = Straddle(trade_matrix.time, buy_pe_position, buy_ce_position, sell_pe_position,
-                            sell_ce_position)
+                            sell_ce_position, trade_matrix)
         straddle.target_profit = target_profit
         straddle.trailing_sl_perc = trailing_sl_perc
 
@@ -371,7 +371,7 @@ class TradePlacer(threading.Thread):
         self.zerodha_algo_trader: ZerodhaBrokingAlgo = None
         self.zerodha_api: ZerodhaApi = None
 
-    def get_not_executed_trades(self) -> TradeMatrix:
+    def get_not_executed_trades(self) -> List[TradeMatrix]:
         today_date_str = get_today_date_in_str()
         day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
         today_date = datetime.datetime.today()
@@ -381,7 +381,7 @@ class TradePlacer(threading.Thread):
         trade_matrices: List[TradeMatrix] = parse_trade_selectors(configured_interval_sl)
         # configured_intervals = [interval.split("|")[0] for interval in configured_interval_sl]
         # list of straddles that needs to executed i.e. checks whether its past the current time
-        india_vix = self.zerodha_api.get_latest_instrument_price(day_trade.access_token, "INDIA VIX")
+        india_vix = self.zerodha_api.get_latest_instrument_price(day_trade.enctoken, "INDIA VIX", False)
         passed_matrices = [matrix for matrix in trade_matrices if
                            matrix.time <= current_min_str and matrix.trade_selector_fn(float(india_vix))]
         if len(passed_matrices) > 0:
@@ -389,12 +389,7 @@ class TradePlacer(threading.Thread):
             not_executed_trades = [metric for metric in passed_matrices if
                                    metric.matrix_id not in day_trade.straddle_by_time]
             if len(not_executed_trades) > 0:
-                # if its not 1 that would mean some of  earlier straddle was not executed
-                if len(not_executed_trades) != 1:
-                    raise Exception("something had gone gone wrong as some of ")
-                else:
-                    not_executed_trade: TradeMatrix = not_executed_trades[0]
-                return not_executed_trade
+                return not_executed_trades
 
     def run(self):
         start_time = time.time()
@@ -407,7 +402,12 @@ class TradePlacer(threading.Thread):
                 print("about to check")
                 if self.stop_running is True:
                     break
-                not_executed_trade: TradeMatrix = self.get_not_executed_trades()
+                not_executed_trades: List[TradeMatrix] = self.get_not_executed_trades()
+                # if its not 1 that would mean some of  earlier straddle was not executed
+                if len(not_executed_trades) != 1:
+                    raise Exception("something had gone gone wrong as some of ")
+                else:
+                    not_executed_trade: TradeMatrix = not_executed_trades[0]
                 straddle = self.zerodha_algo_trader.place_straddle_order(not_executed_trade, day_trade)
                 all_legs = [straddle.sell_pe_position, straddle.sell_ce_position, straddle.buy_pe_position,
                             straddle.buy_ce_position]

@@ -1,7 +1,5 @@
 from typing import List, Dict
 
-from trade_setup import TradeMatrix, Basket
-
 
 class Order:
     def __init__(self, order_id):
@@ -9,6 +7,33 @@ class Order:
         self.zerodha_order: Dict = None
         self.is_c2c_set = False
         self.is_trailing_sl_set = False
+
+
+# ["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date,
+#                                              1.2, 60, .5,
+class TradeMatrix:
+    def __init__(self, matrix_id: str, time: str, trade_selector_fn, strike_selector_fn, sl: float, target_profit: int,
+                 trailing_sl_perc: float, quantity: int, is_c2c_enabled: bool):
+        self.matrix_id: str = matrix_id
+        self.time: str = time
+        self.trade_selector_fn = trade_selector_fn
+        self.strike_selector_fn = strike_selector_fn
+        self.sl = sl
+        self.target_profit = target_profit
+        self.trailing_sl_perc = trailing_sl_perc
+        self.quantity = quantity
+        self.is_c2c_enabled = is_c2c_enabled
+
+
+class Basket:
+    def __init__(self, basket_id, tradingsymbol, transaction_type, order_type, quantity):
+        self.basket_id = basket_id
+        self.tradingsymbol: str = tradingsymbol
+        self.transaction_type: str = transaction_type
+        self.order_type: str = order_type
+        self.quantity: int = quantity
+        self.price: float = 0
+        self.trigger_price: float = 0
 
 
 class Position:

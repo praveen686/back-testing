@@ -9,8 +9,6 @@ from zerodha_classes import Straddle
 
 
 class DayTrade:
-    #
-
     def __init__(self, date_str: str, access_token: str):
         self.date_str: str = date_str
         self.access_token: str = access_token
@@ -21,35 +19,6 @@ class DayTrade:
         self.is_all_position_exited = False
         self.target_profit_reached = False
         self.trailing_profit_sl: float = None
-
-
-#
-# ["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date,
-#                                              1.2, 60, .5,
-class TradeMatrix:
-    def __init__(self, matrix_id: str, time: str, trade_selector_fn, strike_selector_fn, sl: float, target_profit: int,
-                 trailing_sl_perc: float, quantity: int, is_c2c_enabled: bool):
-        self.matrix_id: str = matrix_id
-        self.time: str = time
-        self.trade_selector_fn = trade_selector_fn
-        self.strike_selector_fn = strike_selector_fn
-        self.sl = sl
-        self.target_profit = target_profit
-        self.trailing_sl_perc = trailing_sl_perc
-        self.quantity = quantity
-        self.is_c2c_enabled = is_c2c_enabled
-
-
-class Basket:
-    def __init__(self, basket_id, tradingsymbol, transaction_type, order_type, quantity):
-        self.basket_id = basket_id
-        self.tradingsymbol: str = tradingsymbol
-        self.transaction_type: str = transaction_type
-        self.order_type: str = order_type
-        self.quantity: int = quantity
-        self.price: float = 0
-        self.trigger_price: float = 0
-
 
 class AllTrade:
     trade_intervals_by_week_day: Dict[int, List[str]] = {

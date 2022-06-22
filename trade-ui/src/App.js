@@ -16,37 +16,48 @@ class StartAnalyzer extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      ectoken: ""
+      encToken: "",
+      buyLegPrice: 0,
+      finalPrice: -1
     };
   }
 
   componentDidMount() {
 
   }
-  upateEctoken(evt) {
-    const val = evt.target.value;
-    this.setState({
-      ectoken: val
-    });
-  }
-
   updateEnctoken() {
     const requestOptions = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'React POST Request Example' })
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+      // body: JSON.stringify({ title: 'React POST Request Example' })
     };
 
-    fetch(`http://localhost:5000/settoken?enctoken=${this.state.ectoken}`)
+    fetch(`http://localhost:5000/setenctoken?encToken=${encodeURIComponent(this.state.encToken)}`)
       .then(response => response.json())
       .then(data => this.setState({ postId: data.id }));
+  }
+  getFinalMargin() {
+    const requestOptions = {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    };
+
+    fetch(`http://localhost:5000/findmargin?buyLegPrice=${this.state.buyLegPrice}`)
+      .then(response => response.json())
+      .then(data => { 
+        console.log(data); 
+        this.setState({finalPrice:data.data.final.total})
+      });
   }
 
   render() {
     return (
       <>
-        <input value={this.state.ectoken} onChange={evt => this.upateEctoken(evt)} />
-        <input type="button" onClick={() => this.updateEnctoken()} value="werwe"></input>
+        <input value={this.state.encToken} onChange={evt => this.setState({ encToken: evt.target.value })} />
+        <input type="button" onClick={() => this.updateEnctoken()} value="token"></input>
+        <input value={this.state.buyLegPrice} onChange={evt => this.setState({ buyLegPrice: evt.target.value })} />
+        <input type="button" onClick={() => this.getFinalMargin()} value="buy"></input>
+        <div>{this.state.finalPrice}</div>
       </>
 
     );
