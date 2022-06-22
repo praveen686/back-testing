@@ -4,13 +4,13 @@ from flask import Flask, request, jsonify, make_response, send_from_directory
 from kiteconnect import KiteTicker, KiteConnect
 
 import constants
-from trade_setup import DayTrade
 import trade_setup
+from trade_setup import TradeMatrix, DayTrade
 from AnalyzeData import analyze_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
 from zerodha_api import ZerodhaApi
-from zerodha_kiteconnect_algo_trading import MyTicker
+from zerodha_kiteconnect_algo_trading import MyTicker, TradeTicker
 
 from os.path import exists
 
@@ -104,7 +104,7 @@ def test_test():
         raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
 
 
-@app.route("/settoken", methods=["GET", "OPTIONS"])
+@app.route("/setenctoken", methods=["GET", "OPTIONS"])
 def settoken():
     enctoken = request.args.get('enctoken')
     if request.method == "OPTIONS":  # CORS preflight
@@ -123,28 +123,33 @@ def settoken():
 
 @app.route("/ticker", methods=["GET", "OPTIONS"])
 def ticker():
-    today_date_str: str = get_today_date_in_str()
-    access_token = TradeSe.Data.access_token
-    if access_token is None:
-        access_token = get_pickle_data("access_token")
-        TradeData.Data.access_token = access_token
-    if access_token is None:
-        raise Exception("no access token present")
-    if TradeData.Data.my_ticker is not None:
-        raise Exception("ticker already present!!")
-    my_ticker = MyTicker(access_token)
-    my_ticker.start()
-    # my_ticker.connect(True)
-    TradeData.Data.my_ticker = my_ticker
-    return {"": ""}
+    trade_ticker = TradeTicker.ticker_instance
+    return trade_ticker.day_trade.ltp
+
+
+@app.route("/findmargin", methods=["GET", "OPTIONS"])
+def find_required_margin():
+    max_leg_price = float(request.args.get('maxlegbuyprice'))
+    trade_placer = TradePlacer.trade_placer_instance
+    if trade_placer is not None:
+        today_date_str = get_today_date_in_str()
+        day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
+        trade_matrix: TradeMatrix = trade_placer.get_not_executed_trades()
+        algo = ZerodhaBrokingAlgo(False, 0)
+        straddle = algo.prepare_option_legs(trade_matrix, day_trade, max_leg_price)
+        zerodha_api = ZerodhaApi(False)
+        response = zerodha_api.get_straddle_with_final_margin(straddle, day_trade.enctoken)
+    else:
+        raise Exception("trade_placer not present")
+    return response
 
 
 @app.route("/stopticker", methods=["GET", "OPTIONS"])
 def stop_ticker():
-    my_ticker = TradeData.Data.my_ticker
-    if my_ticker is not None:
-        my_ticker.stop_gracefully()
-        TradeData.Data.my_ticker = None
+    trade_ticker = TradeTicker.ticker_instance
+    if trade_ticker is not None:
+        trade_ticker.stop_gracefully()
+        TradeTicker.ticker_instance = None
     else:
         raise Exception("ticker not present")
     return {"status": "done"}

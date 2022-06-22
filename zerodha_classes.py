@@ -1,6 +1,6 @@
 from typing import List, Dict
 
-from trade_setup import TradeMatrix
+from trade_setup import TradeMatrix, Basket
 
 
 class Order:
@@ -46,3 +46,4 @@ class Straddle:
         self.sell_pe_position: Position = sell_pe_position
         self.sell_ce_position: Position = sell_ce_position
         self.src_trade_matrix: TradeMatrix = src_trade_matrix
+        self.basket: Basket

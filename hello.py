@@ -14,7 +14,7 @@ access_token = '5jfQow91XSKLwFPAid4C56WTe8O14bK0'
 today_date_str: str = get_today_date_in_str()
 enc_token = "DUc6GOf1AKA7DPVhj2ajGUZ6rCDrrSVAEpX0QhecobUr8t5qeF2q/H1dABiVpAArRR6QbKDVETvSl7n9FuvLDUBtnHzVxSlOkBUjC0mdYPXaY2jJVlKH7Q=="
 
-algo = ZerodhaBrokingAlgo(False, 0, DayTrade(today_date_str, access_token))
+algo = ZerodhaBrokingAlgo(False, 0)
 straddle = algo.prepare_option_legs(1.6, 25, "09:24", 3)
 # straddle = algo.place_straddle_order(1.6, 25, "11:40", enc_token, access_token)
 straddle = algo.add_legs_to_basket(straddle, access_token)

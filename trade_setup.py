@@ -17,7 +17,7 @@ class DayTrade:
         self.enctoken: str = ""
         self.straddle_by_time: Dict[str, Straddle] = {}
         self.ltp: Dict[int, float] = {}
-        self.buy_leg_max_price = None
+        self.final_buy_leg_price = None  # this leg is to reduce the margin cost
         self.is_all_position_exited = False
         self.target_profit_reached = False
         self.trailing_profit_sl: float = None
@@ -38,6 +38,17 @@ class TradeMatrix:
         self.trailing_sl_perc = trailing_sl_perc
         self.quantity = quantity
         self.is_c2c_enabled = is_c2c_enabled
+
+
+class Basket:
+    def __init__(self, basket_id, tradingsymbol, transaction_type, order_type, quantity):
+        self.basket_id = basket_id
+        self.tradingsymbol: str = tradingsymbol
+        self.transaction_type: str = transaction_type
+        self.order_type: str = order_type
+        self.quantity: int = quantity
+        self.price: float = 0
+        self.trigger_price: float = 0
 
 
 class AllTrade:

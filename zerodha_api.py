@@ -1,10 +1,11 @@
 import random
-from typing import Dict
+from typing import Dict, List
 
 import requests
 
 import constants
-from zerodha_classes import Position, Order
+from trade_setup import Basket
+from zerodha_classes import Position, Order, Straddle
 from util import write_pickle_data, get_pickle_data
 import requests
 import json
@@ -112,17 +113,17 @@ class ZerodhaApi:
                 raise Exception(
                     f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
 
-    def add_basket_items(self, basket_id: int, symbol: str, access_token: str, quantity: int, transaction_type: str,
-                         price: float, trigger_price, order_type: str):
+    def add_basket_items(self, access_token: str, basket: Basket):
 
         data = {
             "exchange": "NFO",
-            "tradingsymbol": symbol,
+            "tradingsymbol": basket.tradingsymbol,
             "weight": 0,
             "params": json.dumps(
-                {"transaction_type": transaction_type, "product": "MIS", "order_type": order_type, "validity": "DAY",
-                 "validity_ttl": 1, "variety": "regular", "quantity": quantity, "price": price,
-                 "trigger_price": trigger_price, "disclosed_quantity": 0})
+                {"transaction_type": basket.transaction_type, "product": "MIS", "order_type": basket.order_type,
+                 "validity": "DAY",
+                 "validity_ttl": 1, "variety": "regular", "quantity": basket.quantity, "price": basket.price,
+                 "trigger_price": basket.trigger_price, "disclosed_quantity": 0})
 
         }
         # y = json.dumps(a)
@@ -131,14 +132,48 @@ class ZerodhaApi:
             place_order = Order(-1)
         else:
             ZerodhaApi.set_auth_header(zerodha_header, access_token)
-            response = requests.post(f'https://kite.zerodha.com/api/baskets/{basket_id}/items', headers=zerodha_header,
+            response = requests.post(f'https://kite.zerodha.com/api/baskets/{basket.basket_id}/items',
+                                     headers=zerodha_header,
                                      data=data)
             if response.status_code != 200:
                 raise Exception(
-                    f'exception occured while creating basket {basket_id}')
+                    f'exception occured while creating basket {basket.basket_id}')
             resp_json_data = json.loads(response.text)
             basket_id = resp_json_data['data']
             return basket_id
+
+    def get_straddle_with_final_margin(self, straddle: Straddle, enctoken: str):
+        basket_items = []
+        straddle_items: List[Position] = [straddle.buy_pe_position, straddle.buy_ce_position, straddle.sell_pe_position,
+                                          straddle.sell_ce_position]
+        for straddle_item in straddle_items:
+            basket_items.append(
+                {
+                    "exchange": "NFO",
+                    "tradingsymbol": straddle_item.symbol,
+                    "transaction_type": straddle_item.sell_or_buy,
+                    "variety": "regular",
+                    "product": "NRML",
+                    "order_type": "MARKET",
+                    "quantity": straddle_item.quantity,
+                    "price": 0,
+                    "trigger_price": 0,
+                    "squareoff": 0,
+                    "stoploss": 0
+                }
+            )
+        if self.is_testing:
+            response = {"order_id": '220413000593839'}
+            return response
+        else:
+            ZerodhaApi.set_auth_header(zerodha_header, enctoken, False)
+            response = requests.post("https://kite.zerodha.com/oms/margins/basket?consider_positions=&mode=compact",
+                                     headers=zerodha_header, data=basket_items)
+            if response.status_code != 200:
+                raise Exception(
+                    f'exception occurred while trying to fetch margin')
+            resp_json_data = json.loads(response.text)
+            return resp_json_data
 
     def create_new_basket(self, basket_name, access_token: str) -> int:
         data = {
