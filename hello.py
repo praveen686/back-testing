@@ -8,16 +8,23 @@ import numpy as np
 from option_util import get_minutes
 from util import get_today_date_in_str
 from trade_setup import DayTrade
-from zerodha_algo_trader import ZerodhaBrokingAlgo
+from zerodha_algo_trader import ZerodhaBrokingAlgo, TradePlacer
+from zerodha_api import ZerodhaApi
+from zerodha_classes import TradeMatrix
 
-access_token = '5jfQow91XSKLwFPAid4C56WTe8O14bK0'
+access_token = 'qTlG1878y0o9WjFYwpRbTAlZDenLgoTx'
 today_date_str: str = get_today_date_in_str()
-enc_token = "DUc6GOf1AKA7DPVhj2ajGUZ6rCDrrSVAEpX0QhecobUr8t5qeF2q/H1dABiVpAArRR6QbKDVETvSl7n9FuvLDUBtnHzVxSlOkBUjC0mdYPXaY2jJVlKH7Q=="
-
+enc_token = "dbsbWFck68CI6Px1l0G1LGZkngQn5bDAIUi1sJF7HcmzdfPS+FEgTqXevm7Ngn74IyYwXO18PLn2S+kfgDYpEAEKQrmwU3yfR1FCMiDk/AWX6YKCg7RtZg=="
+day_trade = DayTrade(today_date_str, access_token)
+day_trade.enctoken = enc_token
+day_trade.access_token = access_token
 algo = ZerodhaBrokingAlgo(False, 0)
-straddle = algo.prepare_option_legs(1.6, 25, "09:24", 3)
-# straddle = algo.place_straddle_order(1.6, 25, "11:40", enc_token, access_token)
-straddle = algo.add_legs_to_basket(straddle, access_token)
+zerodha_api = ZerodhaApi(False)
+trade_placer = TradePlacer()
+trade_placer.zerodha_api = zerodha_api
+trade_matrix: List[TradeMatrix] = trade_placer.get_not_executed_trades(day_trade)
+straddle = algo.prepare_option_legs(trade_matrix[0], day_trade, 3)
+basket_id = algo.add_legs_to_basket(straddle, day_trade)
 print("")
 exit(0)
 

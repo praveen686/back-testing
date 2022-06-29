@@ -1,11 +1,16 @@
+import copy
 import re
 from datetime import datetime, timedelta
 from typing import Dict, List
 
 from back_testing import BackTester, DayTracker, OptionLegDayTracker, Trade
-from util import get_pickle_data
+from back_testing_new_new import DayTrade, LegTrade, LegPair
+from util import get_pickle_data, map_to_matrix
 
 # this is called from flask router with back_test obj which was pickled earlier
+from zerodha_classes import TradeMatrix
+
+
 def analyze_data(back_tester: BackTester, trade_date: str, option_type: str):
     # analyze_data(back_tester, "2021-09-03", "PE")
     minute_str_list = get_minute_list()
@@ -112,6 +117,76 @@ def get_minute_list():
 # this is needed for highchart so that the trade could be marked in the graph
 def get_list_value_with_index(candle_list_dic: Dict[str, tuple], minute_str_list: List[str],
                               option_leg_tracker: OptionLegDayTracker):
+    trades: List[Trade] = option_leg_tracker.trades
+    option_premiums_with_trade_marked = []
+    start_premium = None
+    for key in candle_list_dic:
+        matching_trades = [trade for trade in trades if trade.trade_time == key]
+        premium_index = minute_str_list.index(key)
+        option_value = float(candle_list_dic[key]['close'])
+        matching_trade = None
+        if len(matching_trades) > 0:
+            matching_trade = matching_trades[0]
+        if matching_trade is not None:
+            # when trade is started/ended at this time, modify the data so that its shown diff. in the graph
+            option_trade_entry = {"marker": {
+                "fillColor": '#FF0000',
+                "lineWidth": 3,
+                "lineColor": "#FF0000",
+                "radius": 4
+            }, "y": option_value, "x": premium_index}
+            if start_premium is None:
+                start_premium = option_value
+            else:
+                profit = (option_value - start_premium) * -1
+                profit_perc = (profit / start_premium) * 100
+                start_premium = None
+                option_trade_entry['marker']['profit'] = profit
+                option_trade_entry['marker']['profitPerc'] = round(profit_perc, 2)
+
+            option_premiums_with_trade_marked.append(option_trade_entry)
+        else:
+            option_premiums_with_trade_marked.append([premium_index, option_value])
+    return option_premiums_with_trade_marked
+
+
+def get_highchart_option_data():
+    return None
+
+
+day_trades: List[DayTrade] = None
+
+
+def get_leg_pair(trade_matrix: TradeMatrix, leg_trades: List[LegTrade]):
+    time_str: str = trade_matrix.time
+    strike_price_offset = trade_matrix.strike_selector_fn(0)
+    pe_min_strike = f'{time_str}|{strike_price_offset[0]}'
+    # atm minutes will have entries like -100 to 100 to get the itm and otm strikes.
+    pe_leg_trade = [leg_trade for leg_trade in leg_trades if
+                    pe_min_strike in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
+    ce_min_time = f'{time_str}|{strike_price_offset[1]}'
+    ce_leg_trade = [leg_trade for leg_trade in leg_trades if
+                    ce_min_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
+
+    if len(pe_leg_trade) > 0 and len(ce_leg_trade) > 0:
+        leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
+        return leg_pair
+
+
+def get_high_chart_data(date: str, matrix_str):
+    trade_matrix: TradeMatrix = map_to_matrix(matrix_str)
+    global day_trades
+    if day_trades is None:
+        day_trades = get_pickle_data("day_trades_all_minute")
+    filtered_day_trades = [day_trade for day_trade in day_trades if
+                  date == day_trade.trade_date_str]
+    leg_pair: LegPair = get_leg_pair(trade_matrix, filtered_day_trades[0].leg_trades)
+    return leg_pair
+
+
+# this is needed for highchart so that the trade could be marked in the graph
+def get_list_value_with_(candle_list_dic: Dict[str, tuple], minute_str_list: List[str],
+                         option_leg_tracker: OptionLegDayTracker):
     trades: List[Trade] = option_leg_tracker.trades
     option_premiums_with_trade_marked = []
     start_premium = None

@@ -113,7 +113,7 @@ class ZerodhaApi:
                 raise Exception(
                     f'exception occured while placing order {position.symbol}:{position.sell_or_buy}:{position.option_type}')
 
-    def add_basket_items(self, access_token: str, basket: Basket):
+    def add_basket_items(self, token: str, basket: Basket, is_access_token: bool):
 
         data = {
             "exchange": "NFO",
@@ -131,7 +131,7 @@ class ZerodhaApi:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, token, is_access_token)
             response = requests.post(f'https://kite.zerodha.com/api/baskets/{basket.basket_id}/items',
                                      headers=zerodha_header,
                                      data=data)
@@ -176,7 +176,7 @@ class ZerodhaApi:
             resp_json_data = json.loads(response.text)
             return resp_json_data
 
-    def create_new_basket(self, basket_name, access_token: str) -> int:
+    def create_new_basket(self, basket_name, token: str, is_access_token: bool) -> int:
         data = {
             "name": "test",
         }
@@ -185,7 +185,7 @@ class ZerodhaApi:
             response = {"order_id": '220413000593839'}
             place_order = Order(-1)
         else:
-            ZerodhaApi.set_auth_header(zerodha_header, access_token)
+            ZerodhaApi.set_auth_header(zerodha_header, token, is_access_token)
             response = requests.post("https://kite.zerodha.com/api/baskets", headers=zerodha_header, data=data)
             if response.status_code != 200:
                 raise Exception(

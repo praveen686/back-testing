@@ -1,5 +1,6 @@
 import copy
 import datetime
+import json
 import random
 from itertools import groupby
 from typing import List, Dict
@@ -247,7 +248,6 @@ class LegTrade:
 
 
 class LegPair:
-    # minutes_till_0915 = (9 * 60) + 15
 
     def __init__(self, start_time_str: str, pe_leg_trade: LegTrade, ce_leg_trade: LegTrade):
         # self.start_time_str = start_time_str
@@ -269,6 +269,21 @@ class LegPair:
         # to identify whether this pair was added as part of adjustment
         self.pair_type = constants.LEG_PAIR_TYPE_ORIGINAL
         self.adjustment_leg: LegPair = None
+
+        # minutes_till_0915 = (9 * 60) + 15
+
+    def to_json(self):
+        return json.dumps(self, default=lambda o: o.__dict__,
+                          sort_keys=True, indent=4)
+
+    def serialize(self):
+        return {
+            'pe': {"tickers": self.pe_leg.premium_tickers, "symbol": self.pe_leg.ticker_symbol},
+            'ce': {"tickers": self.ce_leg.premium_tickers, "symbol": self.ce_leg.ticker_symbol}
+        }
+
+    def test_test(self):
+        return 1
 
     def walk_leg(self, minute_index, sl: float, is_c2c_enabled: bool, min_profit_perc: float, trailing_sl_perc: float,
                  transaction_type: str):
@@ -342,19 +357,52 @@ class DayTrade:
     def set_leg_pairs_by_straddle_times(self, straddle_times: List[str]):
         self.filtered_leg_pairs_by_time = []
         for straddle_time in straddle_times:
-            pe_time = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[0])}'
+            pe_min_strike = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[0])}'
             # atm minutes will have entries like -100 to 100 to get the itm and otm strikes.
             pe_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            pe_time in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
-            ce_time = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[1])}'
+                            pe_min_strike in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
+            ce_min_time = f'{straddle_time.split("|")[0]}|{(straddle_time.split("|")[1].split(",")[1])}'
             ce_leg_trade = [leg_trade for leg_trade in self.leg_trades if
-                            ce_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
+                            ce_min_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
 
             if len(pe_leg_trade) > 0 and len(ce_leg_trade) > 0:
-                leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
-                leg_pair.start_min_index = get_start_minute_index(straddle_time)
-                leg_pair.selected_straddle_time = straddle_time
-                self.filtered_leg_pairs_by_time.append(leg_pair)
+
+                start_min_index = get_start_minute_index(straddle_time)
+                pe_start_premium = pe_leg_trade[0].premium_tickers[start_min_index]
+                ce_start_premium = ce_leg_trade[0].premium_tickers[start_min_index]
+                premium_diff = 0
+                if pe_start_premium == pe_start_premium and ce_start_premium == ce_start_premium:
+                    premium_diff = round(abs(float(pe_start_premium) - float(ce_start_premium)))
+                print(
+                    f'premdiff:{premium_diff > 35} diff:{premium_diff} pesym:{pe_leg_trade[0].ticker_symbol} cesym:{ce_leg_trade[0].ticker_symbol}  {pe_leg_trade[0].india_vix} {pe_start_premium} {ce_start_premium}')
+                # lets say there 30 difference, 30* 2 = 60, which is greater than 50, so will pick next strike, even though it will move 50 points
+                if premium_diff > 35 and False:
+                    # this for adjusting the strike if the amount if the strike price is not balanced.
+                    if pe_start_premium > ce_start_premium:
+                        new_pe_min_time = f'{straddle_time[0:8]}|-{round_nearest(premium_diff * 2, 100)}'
+                        pe_leg_trade = [leg_trade for leg_trade in self.leg_trades if
+                                        new_pe_min_time in leg_trade.atm_minutes and leg_trade.option_type == "PE"]
+                        straddle_time_offset = f'{straddle_time[0:8]}|-{round_nearest(premium_diff * 2, 100)},0'
+                    else:
+                        new_ce_min_time = f'{straddle_time[0:8]}|{round_nearest(premium_diff * 2, 100)}'
+                        ce_leg_trade = [leg_trade for leg_trade in self.leg_trades if
+                                        new_ce_min_time in leg_trade.atm_minutes and leg_trade.option_type == "CE"]
+                        straddle_time_offset = f'{straddle_time[0:8]}|0,{round_nearest(premium_diff * 2, 100)}'
+                    if len(pe_leg_trade) > 0 and len(ce_leg_trade) > 0:
+                        leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
+                        leg_pair.start_min_index = start_min_index
+                        leg_pair.selected_straddle_time = straddle_time_offset
+                        pe_start_premium = pe_leg_trade[0].premium_tickers[start_min_index]
+                        ce_start_premium = ce_leg_trade[0].premium_tickers[start_min_index]
+                        premium_diff = round(abs(float(pe_start_premium) - float(ce_start_premium)))
+                        print(
+                            f'corrpremdiff:{premium_diff > 20} {premium_diff} pesym:{pe_leg_trade[0].ticker_symbol} cesym:{ce_leg_trade[0].ticker_symbol}  {pe_leg_trade[0].india_vix} {pe_start_premium} {ce_start_premium}')
+
+                else:
+                    leg_pair = LegPair("", copy.deepcopy(pe_leg_trade[0]), copy.deepcopy(ce_leg_trade[0]))
+                    leg_pair.selected_straddle_time = straddle_time
+                    leg_pair.start_min_index = start_min_index
+                    self.filtered_leg_pairs_by_time.append(leg_pair)
 
                 # # todo make the change here to fetch based on the time
                 # leg_pair = self.leg_pair_dic[straddle_time]
@@ -414,7 +462,8 @@ class DayTrade:
         #     # print("reached..*************************")
         #     self.set_sl_for_all(True)
         #     self.is_trailing_sl_hit = False
-
+        # if day_profit_so_far <= -600:
+        #     self.set_sl_for_all(True)
         if target_profit != -1:
             # this is the case target profit has reached but the profit went below trailing profit
             if self.is_target_profit_reached:
@@ -541,10 +590,9 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
             # cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
             cummulative_profits.append({"profit": round(total_profit, 2), "date": day_trade.trade_date_str})
             for index, filtered_pair in enumerate(day_trade.filtered_leg_pairs_by_time):
-                if filtered_pair.ce_leg.is_sl_hit:
-                    print(f'sl>>hit>>{filtered_pair.ce_leg.option_type} index:{index}')
-                if filtered_pair.pe_leg.is_sl_hit:
-                    print(f'sl>>hit>>{filtered_pair.pe_leg.option_type} index:{index}')
+                print(f'sl>>hit>>{filtered_pair.pe_leg.is_sl_hit} {filtered_pair.pe_leg.option_type} index:{index}')
+                print(f'sl>>hit>>{filtered_pair.ce_leg.is_sl_hit} {filtered_pair.ce_leg.option_type} index:{index}')
+
             if day_trade.filtered_leg_pairs_by_time[0].pe_leg.is_sl_hit and day_trade.filtered_leg_pairs_by_time[
                 0].ce_leg.is_sl_hit:
                 print("both sl hit")
@@ -580,7 +628,10 @@ def analyze_interval_trades(straddle_times: List[str], start_date: str, end_date
     result['days>stop_at_profit'] = len(days_gt_sat_pft)
 
     result['mean_day_profit'] = round(day_profit_df["profit"].mean())
-    result['std_day_profit'] = round(day_profit_df["profit"].std())
+    if len(day_profit_df) > 1:
+        result['std_day_profit'] = round(day_profit_df["profit"].std())
+    else:
+        result['std_day_profit'] = None
     result['negative_days_count'] = len(day_profit_df[day_profit_df.profit < 0])
 
     day_profit_df['Cumulative'] = day_profit_df.profit.cumsum().round(2)
@@ -651,9 +702,11 @@ def run_analysis(status: bool):
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 7, 100000, 400, "2019-02-18", '2019-12-31', False, '2022-03-10', "SELL"
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 7, 80000, 300, '2020-01-01', '2020-12-31', False, '2022-03-10', "SELL"
         # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 52, 11, 116000, 480, '2021-01-01', '2021-12-31', False, '2022-03-10', "SELL"
-        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-01-07', "SELL"
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-01-03", "2022-04-28", False, '2022-01-07', "SELL"
+        # individual dates
+        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 3, 16, 11, 116000, 480, "2022-02-03", "2022-02-03", False, '2022-01-07', "SELL"
 
-        # lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 24, 16, 11, 100000, 400, "2019-02-18", "2022-04-28", False, '2022-01-07', "SELL"
+        lots, weeks_run, buy_legs_cost, margin_needed_for_straddle, average_sl_buy, start_date, end_date, add_adj_leg, analysis_date_str, transaction_type = 1, 16, 11, 100000, 400, "2019-02-18", "2022-04-28", False, '2022-01-07', "SELL"
 
         brokerage_per_straddle = 250
         lot_quantity = 25
@@ -661,7 +714,8 @@ def run_analysis(status: bool):
         test_to_run = ["result_mon", "result_tue", "result_tue1", "result_wed", "result_wed1",
                        "result_thu",
                        "result_thu1", "result_fri"]
-        test_to_run = ["result_mon1"]
+        test_to_run = ["result_thu"]
+        # test_to_run = ["result_thu", "result_thu1"]
 
         result_mon = result_tue = result_wed = result_thu = result_fri = None
         # "09:40:00|0,0", "10:40:00|0,0", "11:40:00|0,0"
@@ -672,7 +726,8 @@ def run_analysis(status: bool):
                                              start_time="09:15:00", end_time="14:30:00",
                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
                                              india_vix_fn=lambda x: x <= 20 and "result_mon" in test_to_run)
-        result_mon1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date, end_date,
+        result_mon1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date,
+                                              end_date,
                                               1.2, 60, .5,
                                               stop_at_target=-1, allowed_week_day=0, is_c2c_enabled=True,
                                               min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
@@ -720,21 +775,22 @@ def run_analysis(status: bool):
                                               india_vix_fn=lambda x: x >= 20 and "result_wed1" in test_to_run)
 
         # "09:20:00|0,0", "10:40:00|0,0", "11:40:00|0,0"
-        result_thu = analyze_interval_trades(["09:20:00|0,0", "10:40:00|0,0"], start_date, end_date,
+        result_thu = analyze_interval_trades(["09:20:00|-800,800", "10:40:00|-800,-800"], start_date, end_date,
                                              1.6, -1, .6,
                                              stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
                                              min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
                                              start_time="09:15:00", end_time="14:30:00",
                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
-                                             india_vix_fn=lambda x: x < 30 and "result_thu" in test_to_run)
+                                             india_vix_fn=lambda x: x < 20 and "result_thu" in test_to_run)
 
-        result_thu1 = analyze_interval_trades(["09:20:00|100,-100", "10:40:00|100,-100"], start_date, end_date, 1.6,
-                                              130, .6,
+        result_thu1 = analyze_interval_trades(["09:20:00|100,-100", "10:40:00|100,-100"], start_date,
+                                              end_date, 1.6,
+                                              -1, .6,
                                               stop_at_target=-1, allowed_week_day=3, is_c2c_enabled=False,
                                               min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=False,
                                               start_time="09:15:00", end_time="14:30:00",
                                               analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
-                                              india_vix_fn=lambda x: x >= 30 and False and "result_thu1" in test_to_run)
+                                              india_vix_fn=lambda x: x >= 20 and "result_thu1" in test_to_run)
         # "09:40:00|0,0", "10:40:00|0,0", "11:40:00|0,0"
         result_fri = analyze_interval_trades(["09:40:00|0,0", "10:40:00|0,0"], start_date, end_date,
                                              1.2, 60, .5,
@@ -743,7 +799,8 @@ def run_analysis(status: bool):
                                              start_time="09:15:00", end_time="14:30:00",
                                              analyzed_date_str=analysis_date_str, transaction_type=transaction_type,
                                              india_vix_fn=lambda x: x <= 20 and "result_fri" in test_to_run)
-        result_fri1 = analyze_interval_trades(["09:40:00|100,-100", "10:40:00|100,-100"], start_date, end_date,
+        result_fri1 = analyze_interval_trades(["09:40:00|100,-100"], start_date,
+                                              end_date,
                                               1.2, -1, .5,
                                               stop_at_target=-1, allowed_week_day=4, is_c2c_enabled=True,
                                               min_profit_perc=-1, trailing_sl_perc=.5, add_adj_leg=add_adj_leg,
@@ -784,6 +841,7 @@ def run_analysis(status: bool):
                 f' std_d_pft:{valid_result["std_day_profit"]} ntve_d_ct:{valid_result["negative_days_count"]} drawdown:{float(valid_result["drawdown"]) * lots * lot_quantity} '
                 f' >gt_t_p:{valid_result["days>target_profit"]} >gt_s_a_t:{valid_result["days>stop_at_profit"]} cumm_tackers:{cumm_profits} daytracker:{day_profits}')
             total_profit_after_brokerage = total_profit_after_brokerage + weekday_profit_after_brokerage
+            # adding profit tracker to the combined result
             combined_profit_tracker.extend(valid_result["profit_tracker"])
 
         max_interval_in_week = max([valid_result["intervals"] for valid_result in valid_results])

@@ -7,7 +7,7 @@ import constants
 import trade_setup
 from trade_setup import DayTrade
 from zerodha_classes import TradeMatrix
-from AnalyzeData import analyze_data
+from AnalyzeData import analyze_data, get_high_chart_data
 from util import get_pickle_data, write_pickle_data, get_today_date_in_str
 from zerodha_algo_trader import TradePlacer, ZerodhaBrokingAlgo, PositionAnalyzer
 from zerodha_api import ZerodhaApi
@@ -47,6 +47,20 @@ def home():
     elif request.method == "GET":  # The actual request following the preflight
         closes = analyze_data(None, date, option_type)
         return _corsify_actual_response(jsonify(closes))
+    else:
+        raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
+
+
+@app.route("/options", methods=["GET", "OPTIONS"])
+# this sets the route to this page
+def options():
+    date = request.args.get('date')
+    matrix_str = request.args.get('matrix_str')
+    if request.method == "OPTIONS":  # CORS preflight
+        return _build_cors_preflight_response()
+    elif request.method == "GET":  # The actual request following the preflight
+        leg_pair = get_high_chart_data(date, matrix_str)
+        return _corsify_actual_response(jsonify(leg_pair.serialize()))
     else:
         raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
 

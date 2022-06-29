@@ -44,7 +44,7 @@ class ZerodhaBrokingAlgo:
         atm_strike_price = round_nearest(spot_price, 100)
 
         pe_strike_price = trade_matrix.strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
-        ce_strike_price = trade_matrix.strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_PE)
+        ce_strike_price = trade_matrix.strike_selector_fn(atm_strike_price, constants.OPTION_TYPE_CE)
 
         strike_price_list = nse_json_data['records']['data']
         nearest_expiry_date = nse_json_data['records']['expiryDates'][0]
@@ -142,7 +142,7 @@ class ZerodhaBrokingAlgo:
     def add_legs_to_basket(self, straddle: Straddle, day_trade: DayTrade):
         basket_name = f'{day_trade.date_str}_{straddle.trade_time}'
         access_token = day_trade.access_token
-        basket_id = self.zerodha_api.create_new_basket(basket_name, access_token)
+        basket_id = self.zerodha_api.create_new_basket(basket_name, day_trade.access_token, True)
 
         buy_pe_basket = Basket(basket_id, straddle.buy_pe_position.symbol, straddle.buy_pe_position.sell_or_buy,
                                "MARKET", straddle.buy_pe_position.quantity)
@@ -153,10 +153,10 @@ class ZerodhaBrokingAlgo:
         sell_ce_basket = Basket(basket_id, straddle.sell_ce_position.symbol, straddle.sell_ce_position.sell_or_buy,
                                 "MARKET", straddle.sell_ce_position.quantity)
 
-        self.zerodha_api.add_basket_items(access_token, buy_pe_basket)
-        self.zerodha_api.add_basket_items(access_token, buy_ce_basket)
-        self.zerodha_api.add_basket_items(access_token, sell_pe_basket)
-        self.zerodha_api.add_basket_items(access_token, sell_ce_basket)
+        self.zerodha_api.add_basket_items(day_trade.access_token, buy_pe_basket, True)
+        self.zerodha_api.add_basket_items(day_trade.access_token, buy_ce_basket, True)
+        self.zerodha_api.add_basket_items(day_trade.access_token, sell_pe_basket, True)
+        self.zerodha_api.add_basket_items(day_trade.access_token, sell_ce_basket, True)
 
         return basket_id
 
@@ -371,9 +371,9 @@ class TradePlacer(threading.Thread):
         self.zerodha_algo_trader: ZerodhaBrokingAlgo = None
         self.zerodha_api: ZerodhaApi = None
 
-    def get_not_executed_trades(self) -> List[TradeMatrix]:
+    def get_not_executed_trades(self, day_trade: DayTrade) -> List[TradeMatrix]:
         today_date_str = get_today_date_in_str()
-        day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
+        # day_trade: DayTrade = trade_setup.AllTrade.trading_data_by_date[today_date_str]
         today_date = datetime.datetime.today()
         current_min_str = get_current_min_in_str()
         week_day = today_date.weekday()

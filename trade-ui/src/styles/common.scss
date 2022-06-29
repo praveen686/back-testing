@@ -1,0 +1,92 @@
+
+body{
+    min-height: 100vh;
+    margin: 0px;
+    #root{
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 200px 1fr;
+    }
+}
+.form-control{
+    height: 28px;
+    font-size: 13px;
+    display: block;
+    width: 100%;
+    padding: .375rem .75rem;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    box-sizing: border-box;
+}
+
+.awesome-icon{
+    width: 15px !important;
+    height: 15px !important;
+}
+
+.modal-container{
+    position:fixed;
+    width:100%;
+    height:100%;
+    top:0px;
+    left:0px;
+    display:grid;
+    align-content:center;
+    justify-content:center;
+    grid-template-rows: 1fr 1fr 1fr;
+    background: #d3d3d38f;
+    .modal-inner{
+        position:relative;
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-sizing: border-box;
+        box-shadow: rgba(0,0,0,0.2) 0px 2px 1px -1px, rgba(0,0,0,.14) 0px 1px 1px 0px, rgba(92,57,57,0.12) 0px 1px 3px 0px;
+    }
+}
+
+hr{
+    margin: 0;
+    height: 0;
+    -webkit-flex-shrink: 0;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    border-width: 0;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.12);
+    border-bottom-width: thin;
+}
+
+button{
+    height: 23px;
+}
+
+span.txt{
+    font-family: 'Roboto';
+    font-size: 13px;
+}
+
+//setting borderbox
+.row-input{
+    box-sizing: border-box;
+    height: 20px !important;
+    font-size: small !important;
+}
+
+// for styling react date component
+.react-datepicker-wrapper{
+    display: grid !important;
+    grid-area: "date";
+    .react-datepicker__input-container{
+        display: grid !important;
+        input{
+            width: 100%;
+            box-sizing: border-box;
+        }
+    }
+}

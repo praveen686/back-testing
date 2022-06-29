@@ -32,8 +32,8 @@ class AllTrade:
             "wed_0940_iv_gte_20|09:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True",
             "wed_1040_iv_lt_20|10:40|iv:iv<20|sp:sp|1.2|-1|-1|25|True",
             "wed_1040_iv_gte_20|10:40|iv:iv>=20|sp,ttype:sp+100 if ttype=='PE' else sp-100|1.2|-1|-1|25|True"],
-        3: ["thu_0920|09:20|sp:sp|1.6|-1|-1|25|True",
-            "thu_1040|10:40|sp:sp|1.6|-1|-1|25|True"],
+        3: ["thu_0920|09:15|iv:iv<=30|sp,ttype:sp|1.6|-1|-1|25|True",
+            "thu_1040|10:40|iv:iv<=30|sp,ttype:sp|1.6|-1|-1|25|True"],
         4: ["fri_0940|09:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True",
             "fri_1040|10:40|iv:iv<=20|sp:sp|1.2|60|.5|25|True"],
     }

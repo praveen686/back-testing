@@ -74,19 +74,20 @@ def get_formatted_time_by_adding_delta_to_base(base_min_str: str, delta: int):
 # self.trailing_sl_perc = trailing_sl_perc
 
 def parse_trade_selectors(trade_selectors: List[str]) -> List[TradeMatrix]:
-    def map_to_matrix(selector_str: str) -> TradeMatrix:
-        selector_str_split = selector_str.split("|")
-        matrix_id = selector_str_split[0]
-        time = selector_str_split[1]
-        trade_selector_fn = eval(f'lambda {selector_str_split[2]}')
-        strike_selector_fn = eval(f'lambda {selector_str_split[3]}')
-        sl = float(selector_str_split[4])
-        target_profit = int(selector_str_split[5])
-        trailing_sl_perc = float(selector_str_split[6])
-        quantity = int(selector_str_split[7])
-        is_c2c_enabled = bool(selector_str_split[8])
-        return TradeMatrix(matrix_id, time, trade_selector_fn, strike_selector_fn, sl, target_profit, trailing_sl_perc,
-                           quantity, is_c2c_enabled)
-
     selectors: List[TradeMatrix] = list(map(map_to_matrix, trade_selectors))
     return selectors
+
+
+def map_to_matrix(selector_str: str) -> TradeMatrix:
+    selector_str_split = selector_str.split("|")
+    matrix_id = selector_str_split[0]
+    time = selector_str_split[1]
+    trade_selector_fn = eval(f'lambda {selector_str_split[2]}')
+    strike_selector_fn = eval(f'lambda {selector_str_split[3]}')
+    sl = float(selector_str_split[4])
+    target_profit = int(selector_str_split[5])
+    trailing_sl_perc = float(selector_str_split[6])
+    quantity = int(selector_str_split[7])
+    is_c2c_enabled = bool(selector_str_split[8])
+    return TradeMatrix(matrix_id, time, trade_selector_fn, strike_selector_fn, sl, target_profit, trailing_sl_perc,
+                       quantity, is_c2c_enabled)
